@@ -35,7 +35,7 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 ## Implementation constraints
 
 - **Financial calculations must never be delegated to the LLM.** The accounting equation and all ratios are deterministic Python. The LLM explains figures it is handed; it never produces or recomputes them. `compute_ratios` is deliberately synchronous and pure — no DB handle, no LLM client, no I/O.
-- **Money is `Decimal`, never `float`** — stored in MongoDB as `Decimal128`. Float drift at the cent level would fail Balance Sheets that genuinely balance.
+- **Money is `Decimal`, never `float`** — float drift at the cent level would fail Balance Sheets that genuinely balance. Values are stored in MongoDB as `Decimal128`, and the `Decimal` ↔ `Decimal128` conversion is performed by **`core/money.py` at the schema/storage boundary** (`encode_for_mongo` / `decode_from_mongo`, reached via `BalanceSheetDocument.to_mongo()` / `.from_mongo()`). MongoDB codec options do **not** perform this conversion: `CODEC_OPTIONS` in `core/db.py` sets only `tz_aware`. Go through `to_mongo()` / `from_mongo()` rather than converting ad hoc.
 - **MongoDB access is PyMongo `AsyncMongoClient` with Stable API v1. Never Motor** — Motor is deprecated in favour of the PyMongo async API.
 - The client is created and closed in the FastAPI **lifespan** handler and reached through the `get_db()` dependency. Creating it at import time breaks the event loop under pytest.
 - **Original uploaded files go to the `FileStorage` abstraction (`core/storage.py`), never inline in a MongoDB document.**
@@ -46,7 +46,7 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 
 - **Never hard-code secrets.** All configuration comes from `.env` via `core/config.py`.
 - **`.env` must remain gitignored.** Never commit it, copy its values into another file, echo it into logs, or print it in output.
-- `.env.example` lists every key with **blank values**.
+- `.env.example` documents every key and contains **no secrets**. Only `MONGODB_URI` is left blank to be filled in; optional keys are commented out beside their defaults, because an uncommented key with an empty value is a validation error rather than "use the default".
 - Storage keys derive from the file's SHA-256, **never from the client-supplied filename** — uploaded filenames are attacker-controlled and are the classic path-traversal vector.
 
 ## Development
@@ -56,12 +56,18 @@ Windows + PowerShell. Chain commands with `;`, not `&&`.
 ```powershell
 # Backend
 cd backend; .\.venv\Scripts\Activate.ps1; uvicorn app.main:app --reload   # http://localhost:8000
-cd backend; .\.venv\Scripts\Activate.ps1; pytest
+
+# Tests
+pytest                                   # everything; integration skips if Atlas is down
+pytest -m "not integration"              # unit tests only - no cluster needed
+pytest -m integration --require-mongo    # integration only; unreachable Atlas FAILS
 
 # Frontend
 cd frontend; npm run dev                                                  # http://localhost:5173
 ```
 
+- Tests needing a live cluster are those using the `test_db` fixture; the `integration` marker is applied automatically from fixture usage, so never hand-apply it. They run against `<MONGODB_DB>_test`, which is dropped on teardown.
+- Use `--require-mongo` in CI and when verifying Atlas: a connection failure reported as "skipped" is a false green.
 - New logic is written **test-first**.
 - Git is **local only** for now — no remote, no push. GitHub is configured later by the maintainer.
 

@@ -73,9 +73,19 @@ Runs on http://localhost:5173 and proxies `/api` to the backend.
 
 ## Tests
 
+The suite splits into **unit tests**, which need nothing external, and **integration tests**, which need a reachable MongoDB cluster. Integration tests are exactly those using the `test_db` fixture; the `integration` marker is applied to them automatically, so there is no decorator to forget.
+
+They run against a separate `<MONGODB_DB>_test` database which is dropped afterwards — a test run never touches real data.
+
 ```powershell
-cd backend; .\.venv\Scripts\Activate.ps1; pytest
+cd backend; .\.venv\Scripts\Activate.ps1
+
+pytest                                   # everything (integration skips if Atlas is down)
+pytest -m "not integration"              # unit tests only — no cluster needed
+pytest -m integration --require-mongo    # integration only — unreachable Atlas FAILS
 ```
+
+`--require-mongo` turns the default skip into a hard failure. Use it in CI and whenever you are deliberately verifying Atlas connectivity: there, a connection failure quietly reported as "skipped" is a false green.
 
 ## Notes
 
