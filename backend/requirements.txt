@@ -1,0 +1,8 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+# SRV support for mongodb+srv:// Atlas URIs. As of PyMongo 4.17 dnspython is a
+# core dependency, so the old `pymongo[srv]` extra no longer exists.
+pymongo>=4.17
+pydantic>=2.9
+pydantic-settings>=2.6
+python-multipart>=0.0.12
