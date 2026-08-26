@@ -16,11 +16,11 @@ import pytest
 
 from app.core.config import Settings
 from app.core.schemas import PositionedWord, ParserKind
+from app.core.lines import group_into_lines
 from app.modules.ingestion.ocr import (
     OcrEngine,
     OcrUnavailable,
     TesseractOcrEngine,
-    group_into_lines,
     render_pdf_page,
 )
 from app.modules.ingestion.parsing import parse

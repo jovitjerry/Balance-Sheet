@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.db import create_client, ensure_indexes, get_database, ping
 from app.core.errors import register_exception_handlers
+from app.core.llm.ollama import build_llm_provider
 from app.core.pipeline import STAGES
 from app.core.storage import build_storage
 from app.modules.ingestion.ocr import build_ocr_engine
@@ -37,6 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.db = get_database(client, settings)
     app.state.storage = build_storage(settings.storage_backend, settings.storage_dir)
     app.state.ocr = build_ocr_engine(settings.ocr_language)
+    app.state.llm = build_llm_provider(
+        host=settings.ollama_host,
+        model=settings.ollama_model,
+        timeout_s=settings.ollama_timeout_s,
+        num_ctx=settings.ollama_num_ctx,
+    )
     if settings.ocr_enabled and not app.state.ocr.available():
         # A warning, not a failure. Documents with a usable text layer are
         # unaffected; only a scanned page will be refused, and it is refused at
@@ -45,6 +52,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "Tesseract is not available - scanned documents will be refused. "
             "The pytesseract pip package alone is not enough; install the "
             "Tesseract system binary."
+        )
+
+    if not app.state.llm.available():
+        # A warning, not a failure, and for the same reason as OCR above. Every
+        # figure Module 2 extracts is deterministic and unaffected; only the
+        # terminology mapping needs the model, and the labels it cannot resolve
+        # are marked needs_review rather than guessed at. LLM_REQUIRED turns
+        # this into a refusal for CI, where a quietly un-normalized document
+        # would be a false green.
+        logger.warning(
+            "Ollama is not reachable at %s - line-item labels will be recorded "
+            "for review instead of normalized. Install Ollama and run "
+            "'ollama pull %s'.",
+            settings.ollama_host,
+            settings.ollama_model,
         )
 
     try:

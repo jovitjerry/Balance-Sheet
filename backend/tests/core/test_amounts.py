@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.modules.ingestion.amounts import (
+from app.core.amounts import (
     looks_like_amount,
     looks_like_year,
     parse_amount,

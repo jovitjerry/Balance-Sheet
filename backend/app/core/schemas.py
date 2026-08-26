@@ -33,6 +33,8 @@ class DocumentStatus(str, Enum):
     UPLOADED = "uploaded"
     PARSED = "parsed"
     VALIDATED = "validated"
+    # Module 2 has extracted the full line items and normalized their labels.
+    EXTRACTED = "extracted"
     REJECTED = "rejected"
     FAILED = "failed"
 
@@ -184,10 +186,88 @@ class PreliminaryExtraction(BaseModel):
 # --------------------------------------------------------------------------
 
 
+class ExtractionStatus(str, Enum):
+    """Whether Module 2 got a usable figure out of a line."""
+
+    EXTRACTED = "extracted"
+    # The label was found but its figure would not parse. The line is kept
+    # anyway: dropping it would quietly shrink the Balance Sheet, and a line
+    # nobody can read is exactly the one a reviewer needs to see.
+    UNPARSED_VALUE = "unparsed_value"
+
+
+class NormalizationStatus(str, Enum):
+    """How far terminology mapping got on one line item.
+
+    ``NEEDS_REVIEW`` is a real answer, not a failure. Forcing a canonical label
+    onto a label nobody understood would put a confident wrong category into
+    the ratios; saying so leaves the line intact and visible.
+    """
+
+    NORMALIZED = "normalized"
+    NEEDS_REVIEW = "needs_review"
+    UNMAPPED = "unmapped"
+    UNAVAILABLE = "unavailable"
+
+
+class NormalizationMethod(str, Enum):
+    """What decided the mapping. Stored so every answer names its own source."""
+
+    DICTIONARY = "dictionary"
+    CACHE = "cache"
+    LLM = "llm"
+    UNAVAILABLE = "unavailable"
+
+
+class Normalization(BaseModel):
+    """The terminology decision for one line item, and who made it.
+
+    Recorded beside the original label, never instead of it. ``model`` and
+    ``taxonomy_version`` are what make a stored mapping reproducible: the same
+    document re-run against the same model and vocabulary must give the same
+    answer, and when it does not, this says which of the two changed.
+    """
+
+    canonical_label: str | None = None
+    status: NormalizationStatus
+    method: NormalizationMethod
+    confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="The model's own stated confidence. NOT a calibrated "
+        "probability - it may demote a mapping to needs_review and may never "
+        "rescue one that failed validation.",
+    )
+    taxonomy_version: str
+    model: str | None = Field(default=None, description="e.g. 'qwen3:8b'.")
+    reason: str | None = Field(
+        default=None, description="Why this was not normalized, when it was not."
+    )
+
+
 class LineItem(BaseModel):
+    """One extracted line of the Balance Sheet.
+
+    ``label`` is the document's own wording and is never overwritten -
+    ``normalization.canonical_label`` sits beside it. "Trade Debtors" and
+    "Trade Receivables" may map to one concept while remaining distinguishable
+    as what was actually printed.
+    """
+
     label: str = Field(description="The label as printed in the document.")
-    value: Money
+    value: Money | None = Field(
+        default=None, description="None when the printed figure would not parse."
+    )
+    raw: str | None = Field(
+        default=None, description="The figure exactly as printed, e.g. '(2,300)'."
+    )
+    subsection: str | None = Field(
+        default=None, description="'current' or 'non_current' where the sheet says."
+    )
     source: SourceRef | None = None
+    status: ExtractionStatus = ExtractionStatus.EXTRACTED
+    normalization: Normalization | None = None
 
 
 class BalanceSheetSection(BaseModel):
@@ -209,6 +289,16 @@ class BalanceSheetSection(BaseModel):
     )
     total_source: SourceRef | None = None
     line_items: list[LineItem] = Field(default_factory=list)
+    line_items_total: Money | None = Field(
+        default=None, description="Sum of the extracted line items."
+    )
+    reconciliation_difference: Money | None = Field(
+        default=None,
+        description="total - line_items_total, signed. **Diagnostic only.** "
+        "Subtotals and rounding make exact agreement unusual, so this is "
+        "recorded for review and never used to reject a document. It is not "
+        "the accounting equation, which is Module 1's and is checked there.",
+    )
 
 
 class ExtractedBalanceSheet(BaseModel):
@@ -221,6 +311,12 @@ class ExtractedBalanceSheet(BaseModel):
     assets: BalanceSheetSection
     liabilities: BalanceSheetSection
     equity: BalanceSheetSection
+    taxonomy_version: str | None = Field(
+        default=None, description="Which canonical vocabulary normalized this."
+    )
+    normalization_summary: dict[str, int] | None = Field(
+        default=None, description="Line-item counts by NormalizationStatus."
+    )
 
 
 # --------------------------------------------------------------------------
@@ -396,7 +492,11 @@ __all__ = [
     "ExtractedBalanceSheet",
     "IdentificationEvidence",
     "IdentificationSignal",
+    "ExtractionStatus",
     "LineItem",
+    "Normalization",
+    "NormalizationMethod",
+    "NormalizationStatus",
     "ParserKind",
     "PositionedWord",
     "PeriodCandidate",

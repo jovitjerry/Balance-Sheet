@@ -1,0 +1,614 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "label": "Cash and Cash Equivalents",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "cash_and_cash_equivalents",
+      "group": "standard"
+    },
+    {
+      "label": "Trade Receivables",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "standard"
+    },
+    {
+      "label": "Inventory",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "inventory",
+      "group": "standard"
+    },
+    {
+      "label": "Prepaid Expenses",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "prepaid_expenses",
+      "group": "standard"
+    },
+    {
+      "label": "Short-term Investments",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "short_term_investments",
+      "group": "standard"
+    },
+    {
+      "label": "Other Current Assets",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "other_current_assets",
+      "group": "standard"
+    },
+    {
+      "label": "Property, Plant and Equipment",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "standard"
+    },
+    {
+      "label": "Intangible Assets",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "intangible_assets",
+      "group": "standard"
+    },
+    {
+      "label": "Long-term Investments",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "long_term_investments",
+      "group": "standard"
+    },
+    {
+      "label": "Other Non-Current Assets",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "other_non_current_assets",
+      "group": "standard"
+    },
+    {
+      "label": "Trade Payables",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_payables",
+      "group": "standard"
+    },
+    {
+      "label": "Short-term Borrowings",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "short_term_borrowings",
+      "group": "standard"
+    },
+    {
+      "label": "Current Tax Liabilities",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "current_tax_liabilities",
+      "group": "standard"
+    },
+    {
+      "label": "Other Current Liabilities",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "other_current_liabilities",
+      "group": "standard"
+    },
+    {
+      "label": "Long-term Borrowings",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "long_term_borrowings",
+      "group": "standard"
+    },
+    {
+      "label": "Deferred Tax Liabilities",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "deferred_tax_liabilities",
+      "group": "standard"
+    },
+    {
+      "label": "Provisions",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "provisions",
+      "group": "standard"
+    },
+    {
+      "label": "Share Capital",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "share_capital",
+      "group": "standard"
+    },
+    {
+      "label": "Retained Earnings",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "retained_earnings",
+      "group": "standard"
+    },
+    {
+      "label": "Reserves and Surplus",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "reserves_and_surplus",
+      "group": "standard"
+    },
+    {
+      "label": "Trade Debtors",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "synonym"
+    },
+    {
+      "label": "Sundry Debtors",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "synonym"
+    },
+    {
+      "label": "Accounts Receivable",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "synonym"
+    },
+    {
+      "label": "Debtors",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [
+        "Cash at Bank",
+        "Stock"
+      ],
+      "expected": "trade_receivables",
+      "group": "synonym"
+    },
+    {
+      "label": "Bills Receivable",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "synonym"
+    },
+    {
+      "label": "Stock-in-Trade",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "inventory",
+      "group": "synonym"
+    },
+    {
+      "label": "Stocks",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [
+        "Trade Debtors",
+        "Cash at Bank"
+      ],
+      "expected": "inventory",
+      "group": "synonym"
+    },
+    {
+      "label": "Inventories",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "inventory",
+      "group": "synonym"
+    },
+    {
+      "label": "Cash at Bank and in Hand",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "cash_and_cash_equivalents",
+      "group": "synonym"
+    },
+    {
+      "label": "Bank Balances",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "cash_and_cash_equivalents",
+      "group": "synonym"
+    },
+    {
+      "label": "Plant & Machinery",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "synonym"
+    },
+    {
+      "label": "Land and Buildings",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "synonym"
+    },
+    {
+      "label": "Fixed Assets, net",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "synonym"
+    },
+    {
+      "label": "Goodwill",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "intangible_assets",
+      "group": "synonym"
+    },
+    {
+      "label": "Patents and Trademarks",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "intangible_assets",
+      "group": "synonym"
+    },
+    {
+      "label": "Creditors",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [
+        "Bank Overdraft",
+        "Accruals"
+      ],
+      "expected": "trade_payables",
+      "group": "synonym"
+    },
+    {
+      "label": "Sundry Creditors",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_payables",
+      "group": "synonym"
+    },
+    {
+      "label": "Accounts Payable",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_payables",
+      "group": "synonym"
+    },
+    {
+      "label": "Bank Overdraft",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "short_term_borrowings",
+      "group": "synonym"
+    },
+    {
+      "label": "Debentures",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "long_term_borrowings",
+      "group": "synonym"
+    },
+    {
+      "label": "Term Loans from Banks",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "long_term_borrowings",
+      "group": "synonym"
+    },
+    {
+      "label": "Shareholders' Funds",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "share_capital",
+      "group": "synonym"
+    },
+    {
+      "label": "Issued and Paid-up Capital",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "share_capital",
+      "group": "synonym"
+    },
+    {
+      "label": "Profit and Loss Account balance",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "retained_earnings",
+      "group": "synonym"
+    },
+    {
+      "label": "Accumulated Profits",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "retained_earnings",
+      "group": "synonym"
+    },
+    {
+      "label": "General Reserve",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "reserves_and_surplus",
+      "group": "synonym"
+    },
+    {
+      "label": "PPE",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "abbreviation"
+    },
+    {
+      "label": "A/R",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "abbreviation"
+    },
+    {
+      "label": "A/P",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_payables",
+      "group": "abbreviation"
+    },
+    {
+      "label": "ST Borrowings",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "short_term_borrowings",
+      "group": "abbreviation"
+    },
+    {
+      "label": "LT Debt",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "long_term_borrowings",
+      "group": "abbreviation"
+    },
+    {
+      "label": "DTL",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "deferred_tax_liabilities",
+      "group": "abbreviation"
+    },
+    {
+      "label": "Cash & Equiv.",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "cash_and_cash_equivalents",
+      "group": "abbreviation"
+    },
+    {
+      "label": "R/E",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "retained_earnings",
+      "group": "abbreviation"
+    },
+    {
+      "label": "Amounts Owed by Group Undertakings",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_receivables",
+      "group": "unusual"
+    },
+    {
+      "label": "Raw Materials and Consumables",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "inventory",
+      "group": "unusual"
+    },
+    {
+      "label": "Payments in Advance",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "prepaid_expenses",
+      "group": "unusual"
+    },
+    {
+      "label": "Capital Work in Progress",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "property_plant_and_equipment",
+      "group": "unusual"
+    },
+    {
+      "label": "Computer Software Licences",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "intangible_assets",
+      "group": "unusual"
+    },
+    {
+      "label": "Amounts Falling Due Within One Year to Suppliers",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": "trade_payables",
+      "group": "unusual"
+    },
+    {
+      "label": "Employee Benefit Obligations",
+      "section": "liabilities",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": "provisions",
+      "group": "unusual"
+    },
+    {
+      "label": "Revaluation Reserve",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": "reserves_and_surplus",
+      "group": "unusual"
+    },
+    {
+      "label": "Miscellaneous Financial Assets",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Other Financial Assets",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Sundry Balances",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Other Balances",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Financial Instruments",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Adjustments",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Net Assets Employed",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Suspense Account",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "ambiguous"
+    },
+    {
+      "label": "Schedule 14",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "unknown"
+    },
+    {
+      "label": "Refer Note 7",
+      "section": "liabilities",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "unknown"
+    },
+    {
+      "label": "qwerty asdf",
+      "section": "assets",
+      "subsection": "current",
+      "neighbours": [],
+      "expected": null,
+      "group": "unknown"
+    },
+    {
+      "label": "Signed on behalf of the Board",
+      "section": "equity",
+      "subsection": null,
+      "neighbours": [],
+      "expected": null,
+      "group": "unknown"
+    },
+    {
+      "label": "Page 3 of 12",
+      "section": "assets",
+      "subsection": "non_current",
+      "neighbours": [],
+      "expected": null,
+      "group": "unknown"
+    }
+  ]
+}

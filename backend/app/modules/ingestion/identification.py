@@ -28,6 +28,14 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from app.core.amounts import looks_like_amount, looks_like_year, parse_amount
+from app.core.lines import (
+    Cell,
+    DocumentLine,
+    build_lines,
+    column_x_for,
+    figure_for,
+)
 from app.core.schemas import (
     IdentificationEvidence,
     IdentificationSignal,
@@ -37,13 +45,8 @@ from app.core.schemas import (
     SourceRef,
     UnitHint,
 )
+from app.core.text import contains, matches_any, normalise
 from app.modules.ingestion import anchors
-from app.modules.ingestion.amounts import (
-    looks_like_amount,
-    looks_like_year,
-    parse_amount,
-)
-from app.modules.ingestion.lines import Cell, DocumentLine, LabelSegment, build_lines
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +94,7 @@ def is_balance_sheet(preliminary: PreliminaryExtraction) -> IdentificationEviden
     seen: set[str] = set()
 
     def record(kind: str, text: str, weight: int, source: SourceRef) -> None:
-        key = f"{kind}:{anchors.normalise(text)}"
+        key = f"{kind}:{normalise(text)}"
         if key in seen:
             return
         seen.add(key)
@@ -130,9 +133,9 @@ def _record_signals_for(
     record: Callable[[str, str, int, SourceRef], None],
 ) -> None:
     """Score one label and hand whatever it evidences to ``record``."""
-    if anchors.matches_any(label, anchors.TITLE_PHRASES):
+    if matches_any(label, anchors.TITLE_PHRASES):
         record("title", label.strip()[:200], WEIGHT_TITLE, source)
-    elif phrase := anchors.matches_any(label, anchors.OTHER_STATEMENT_PHRASES):
+    elif phrase := matches_any(label, anchors.OTHER_STATEMENT_PHRASES):
         # Only counted when no Balance Sheet title was found: an annual report
         # legitimately contains all of these statements, and the presence of a
         # Cash Flow Statement says nothing against the Balance Sheet printed
@@ -157,7 +160,7 @@ def _section_header(label: str) -> str | None:
     neither is ``Assets pledged as security``, so the whole label has to be the
     heading rather than contain it.
     """
-    normalised = anchors.normalise(label)
+    normalised = normalise(label)
     for phrases in (
         anchors.COMBINED_HEADERS,
         anchors.EQUITY_HEADERS,
@@ -165,7 +168,7 @@ def _section_header(label: str) -> str | None:
         anchors.LIABILITIES_HEADERS,
     ):
         for phrase in sorted(phrases, key=len, reverse=True):
-            candidate = anchors.normalise(phrase)
+            candidate = normalise(phrase)
             if normalised == candidate or normalised == f"{candidate} :":
                 return phrase
     return None
@@ -190,11 +193,11 @@ def _total_kind(label: str) -> str | None:
         return None
 
     kind: str | None = None
-    if anchors.matches_any(label, anchors.TOTAL_ASSETS_PHRASES):
+    if matches_any(label, anchors.TOTAL_ASSETS_PHRASES):
         kind = "assets"
-    elif anchors.matches_any(label, anchors.TOTAL_EQUITY_PHRASES):
+    elif matches_any(label, anchors.TOTAL_EQUITY_PHRASES):
         kind = "equity"
-    elif anchors.matches_any(label, anchors.TOTAL_LIABILITIES_PHRASES):
+    elif matches_any(label, anchors.TOTAL_LIABILITIES_PHRASES):
         kind = "liabilities"
 
     if kind is None or anchors.sections_named(label) != {kind}:
@@ -272,7 +275,7 @@ def _period_candidates(preliminary: PreliminaryExtraction) -> list[PeriodCandida
     # No column heading row. The label of a titled sheet often carries the date
     # instead: "Balance Sheet as at 31 March 2024".
     for line in build_lines(preliminary):
-        if anchors.matches_any(line.label, anchors.TITLE_PHRASES) and _period_text(
+        if matches_any(line.label, anchors.TITLE_PHRASES) and _period_text(
             line.label
         ):
             end_date, year = _parse_period(line.label)
@@ -339,11 +342,11 @@ def detect_units(preliminary: PreliminaryExtraction) -> UnitHint | None:
 
     for line in build_lines(preliminary):
         text = line.text
-        normalised = anchors.normalise(text)
+        normalised = normalise(text)
 
         if scale_label is None:
             for phrase, factor in anchors.SCALE_PHRASES.items():
-                if anchors.contains(normalised, phrase):
+                if contains(normalised, phrase):
                     scale_label = phrase
                     scale_factor = Decimal(factor)
                     source = line.source()
@@ -433,20 +436,21 @@ def locate_totals(
     see :attr:`DocumentLine.segments`.
     """
     totals = LocatedTotals()
+    lines = build_lines(preliminary)
     column = period.selected.source.column if period else None
-    column_x = _column_x(preliminary, period)
+    column_x = column_x_for(lines, period)
 
-    for line in build_lines(preliminary):
+    for line in lines:
         for segment in line.segments:
             kind = _total_kind(segment.label.text)
             if kind is None:
                 continue
 
-            cell = _figure_for(segment, column, column_x)
+            cell = figure_for(segment, column, column_x)
             if cell is None:
                 continue
             value = parse_amount(cell.text)
-            if value is None:  # pragma: no cover - _figure_for already parsed it
+            if value is None:  # pragma: no cover - figure_for already parsed it
                 continue
 
             setattr(
@@ -461,57 +465,6 @@ def locate_totals(
                 ),
             )
     return totals
-
-
-def _column_x(
-    preliminary: PreliminaryExtraction, period: PeriodSelection | None
-) -> float | None:
-    """The horizontal position of the selected period's column, if known."""
-    if period is None:
-        return None
-    target = period.selected.source
-    for line in build_lines(preliminary):
-        if line.page_index != target.page_index or line.row != target.row:
-            continue
-        for cell in line.cells:
-            if cell.column == target.column:
-                return cell.x
-    return None
-
-
-def _figure_for(
-    segment: LabelSegment, column: int | None, column_x: float | None
-) -> Cell | None:
-    """Pick the cell holding this label's figure for the selected period.
-
-    Geometry first where it exists: the figure nearest the selected column's
-    horizontal position. That is what keeps a comparative sheet's current-year
-    column from being confused with the prior year's, which sits only a couple
-    of centimetres away and is equally numeric.
-
-    With no period selected there is one column to choose from, and the
-    left-most figure is it.
-
-    Only the figures belonging to this label are considered. On a horizontal
-    sheet the rest of the row belongs to a different label entirely, and
-    reading across the whole row would hand a total the neighbouring column's
-    figure.
-    """
-    figures = [cell for cell in segment.figures if looks_like_amount(cell.text)]
-    if not figures:
-        return None
-
-    if column_x is not None:
-        positioned = [cell for cell in figures if cell.x is not None]
-        if positioned:
-            return min(positioned, key=lambda cell: abs(cell.x - column_x))
-
-    if column is not None:
-        exact = [cell for cell in figures if cell.column == column]
-        if exact:
-            return exact[0]
-
-    return figures[0]
 
 
 __all__ = [

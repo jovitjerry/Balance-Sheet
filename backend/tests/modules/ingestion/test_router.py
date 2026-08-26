@@ -66,9 +66,28 @@ class TestUploadSucceeds:
 
         assert response.status_code == 201
         body = response.json()
-        assert body["status"] == "validated"
+        # A sheet that passes Module 1 continues into Module 2, so the status
+        # it comes to rest at is `extracted`. The Module 1 verdict is still
+        # right here on the document - the equation check below is it.
+        assert body["status"] == "extracted"
         assert body["equation_check"]["balanced"] is True
         assert body["extracted"]["assets"]["total"] == "150000"
+
+    async def test_the_pipeline_continues_into_line_item_extraction(
+        self, api_client: AsyncClient
+    ) -> None:
+        """Module 1 leaves `line_items` empty; Module 2 is what fills it in."""
+        response = await api_client.post(
+            UPLOAD, files=upload_files(simple_balance_sheet_pdf())
+        )
+
+        assets = response.json()["extracted"]["assets"]
+        assert assets["line_items"], "the upload did not continue into Module 2"
+        assert {item["label"] for item in assets["line_items"]} == {
+            "Cash and cash equivalents",
+            "Inventories",
+            "Property, plant and equipment",
+        }
 
     async def test_a_workbook_is_accepted(self, api_client: AsyncClient) -> None:
         response = await api_client.post(
@@ -80,7 +99,7 @@ class TestUploadSucceeds:
             ),
         )
         assert response.status_code == 201
-        assert response.json()["status"] == "validated"
+        assert response.json()["status"] == "extracted"
 
     async def test_a_comparative_sheet_reports_the_period_it_chose(
         self, api_client: AsyncClient

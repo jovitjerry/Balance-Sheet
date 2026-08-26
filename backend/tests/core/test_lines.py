@@ -15,7 +15,7 @@ reported as missing.
 
 from __future__ import annotations
 
-from app.modules.ingestion.lines import Cell, DocumentLine
+from app.core.lines import Cell, DocumentLine
 
 
 def line(*texts: str) -> DocumentLine:

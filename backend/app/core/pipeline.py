@@ -13,8 +13,10 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
+from typing import Any
+
 from app.core.errors import StageNotImplemented
-from app.core.schemas import BalanceSheetDocument
+from app.core.schemas import BalanceSheetDocument, DocumentStatus
 
 
 class PipelineStage(str, Enum):
@@ -54,8 +56,10 @@ STAGES: tuple[StageInfo, ...] = (
     StageInfo(
         PipelineStage.EXTRACT,
         2,
-        "Full Data Extraction & Normalization",
-        StageState.NOT_IMPLEMENTED,
+        "Full Data Extraction & Normalization (complete line-item extraction, "
+        "section and subsection structure, and terminology mapping onto the "
+        "canonical vocabulary using a local language model)",
+        StageState.IMPLEMENTED,
     ),
     StageInfo(
         PipelineStage.RATIOS,
@@ -89,10 +93,23 @@ class PipelineResult(BaseModel):
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class StageContext:
+    """What the stages need from outside themselves.
+
+    Passed in rather than reached for, so a pipeline run in a test is wired to
+    a stub provider the same way the application wires it to Ollama.
+    """
+
+    llm: Any | None = None
+    settings: Any | None = None
+
+
 async def run_pipeline(
     document: BalanceSheetDocument,
     *,
     start_after: PipelineStage = PipelineStage.INGEST,
+    context: StageContext | None = None,
 ) -> PipelineResult:
     """Run the stages following ``start_after``, stopping at the first gap.
 
@@ -114,14 +131,35 @@ async def run_pipeline(
             )
             return result
 
-        await _run_stage(info, document)  # pragma: no cover - no stage qualifies yet
+        await _run_stage(info, document, context or StageContext())
         result.completed.append(info.stage)
 
     return result
 
 
-async def _run_stage(info: StageInfo, document: BalanceSheetDocument) -> None:
-    """Dispatch one stage. Stages are wired in as their modules are built."""
+async def _run_stage(
+    info: StageInfo, document: BalanceSheetDocument, context: StageContext
+) -> None:
+    """Dispatch one stage. Stages are wired in as their modules are built.
+
+    The imports are local to this function on purpose. Importing Module 2 at
+    the top of a ``core`` file would make the shared layer depend on a module,
+    which is the thing ``core`` exists not to do; here the dependency is
+    confined to the one function whose job is dispatch.
+    """
+    if info.stage is PipelineStage.EXTRACT:
+        from app.modules.extraction.service import extract
+
+        if context.llm is None:
+            raise StageNotImplemented(
+                "The extraction stage needs a language-model provider."
+            )
+        document.extracted = await extract(
+            document, provider=context.llm, settings=context.settings
+        )
+        document.status = DocumentStatus.EXTRACTED
+        return
+
     raise StageNotImplemented(
         f"Stage {info.stage.value!r} is registered but has no implementation wired in."
     )
@@ -132,6 +170,7 @@ __all__ = [
     "STAGES_BY_NAME",
     "PipelineResult",
     "PipelineStage",
+    "StageContext",
     "StageInfo",
     "StageState",
     "run_pipeline",

@@ -1,0 +1,193 @@
+{
+  "model": "qwen3:4b",
+  "case_version": "1.0.0",
+  "metrics": {
+    "figure_accuracy": 0.9333,
+    "questions_fully_cited": 0.875,
+    "refusals_handled": 1.0,
+    "fabricated_on_refusal": 0.0,
+    "errored": 0,
+    "latency_cold_s": 14.06,
+    "latency_warm_mean_s": 14.45,
+    "vram_baseline_mb": 6462.0,
+    "vram_loaded_mb": 4160.0,
+    "questions": 10
+  },
+  "records": [
+    {
+      "id": "q1",
+      "type": "answerable",
+      "question": "What are the total assets, and what is the largest single asset?",
+      "answer": "Okay, the user wants me to help read a company's Balance Sheet in plain language. They've given me the complete Balance Sheet for Meridian Industries Limited as of March 31, 2026. I need to answer in at most four sentences, and I should only use the information provided without adding anything.\n\nLooking at the Balance Sheet, I see the assets section clearly lists cash and cash equivalents at 125,000 INR, trade receivables at 280,000 INR, inventory at 350,000 INR, and so on. The total assets are explicitly stated as 2,300,000 INR. For the largest single asset, I need to compare all the asset categories: property plant and equipment is 1,200,000 INR, which is bigger than inventory (350,000 INR) and all others. \n\nI should make sure I'm not confusing this with what the Balance Sheet doesn't contain - like revenue or cash flow - but the question is straightforward here. The user asked specifically for total assets and the largest single asset, both of which are directly visible in the sheet. \n\nI'll phrase this simply: state the total assets first, then identify property plant and equipment as the largest asset since it's the highest value listed. I'll keep it to two sentences to stay under the four-sentence limit while being clear and plain.\n</think>\n\nThe total assets for Meridian Industries Limited as of 31 March 2026 are 2,300,000 INR. The largest single asset is property, plant and equipment at 1,200,000 INR.",
+      "rubric": [
+        "states 2,300,000",
+        "identifies property, plant and equipment",
+        "states 1,200,000"
+      ],
+      "seconds": 14.06,
+      "errored": false,
+      "figures_expected": 2,
+      "figures_cited": 2,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q2",
+      "type": "answerable",
+      "question": "Does this Balance Sheet balance? Show the two sides.",
+      "answer": "Okay, the user wants me to check if the Meridian Industries Limited Balance Sheet balances using plain language. They've given me the complete Balance Sheet as of March 31, 2026, and I need to show the two sides clearly.\n\nFirst, I recall that a Balance Sheet must balance at all times - meaning Assets should equal Liabilities plus Equity. Let me quickly add up the numbers they provided. \n\nFor Assets: cash (125k) + trade receivables (280k) + inventory (350k) + other current assets (95k) + property plant equipment (1.2m) + intangible assets (150k) + other non current assets (100k) = 2,300,000 INR. \n\nFor Liabilities and Equity: Liabilities total 1,350,000 INR (trade payables 300k + short term borrowings 200k + other current liabilities 150k + long term borrowings 600k + other non current liabilities 100k) and Equity is 950,000 INR (share capital 600k + retained earnings 350k). So Liabilities + Equity = 1,350,000 + 950,000 = 2,300,000 INR.\n\nBoth sides equal 2,300,000 INR - that's perfect balance. I should explain this simply without jargon. The user specifically said to avoid revenue/profit/cash flow mentions since the Balance Sheet doesn't contain those. \n\nI'll keep it to four sentences max: confirm balance, show both sides, and note it's a snapshot. No need to mention what the sheet doesn't contain since the question is about balance. \n\n*checks calculation again* Yep, 2.3m assets vs 1.35m liabilities + 0.95m equity = 2.3m. Solid.\n</think>\n\nYes, this Balance Sheet balances. The total assets amount to 2,300,000 INR, which equals the sum of liabilities (1,350,000 INR) and equity (950,000 INR). Both sides clearly add up to 2,300,000 INR, confirming the snapshot is accurate. This Balance Sheet only shows what the company owns, owes, and has for shareholders at one specific moment\u2014March 31, 2026.",
+      "rubric": [
+        "2,300,000 on both sides",
+        "1,350,000 + 950,000",
+        "says yes"
+      ],
+      "seconds": 11.74,
+      "errored": false,
+      "figures_expected": 3,
+      "figures_cited": 3,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q3",
+      "type": "answerable",
+      "question": "How much of the company is financed by debt rather than by shareholders?",
+      "answer": "Okay, the user wants me to help them understand a company's Balance Sheet in plain language. They've given me the complete Balance Sheet for Meridian Industries Limited as of March 31, 2026, and they're asking specifically about how much of the company is financed by debt rather than by shareholders.\n\nLooking at the Balance Sheet, I see it shows assets, liabilities, and equity. The key here is that debt comes from liabilities, while shareholders' financing comes from equity. The total liabilities are 1,350,000 INR and total equity is 950,000 INR. \n\nThe question asks for \"how much of the company is financed by debt rather than by shareholders.\" So I need to calculate the debt portion. Since the Balance Sheet must balance (assets = liabilities + equity), the debt portion would be the total liabilities. But I should be careful - the question says \"how much of the company,\" which might imply a percentage or proportion. \n\nWait, the Balance Sheet shows total liabilities as 1,350,000 INR and total equity as 950,000 INR. The total capital (debt + equity) is 2,300,000 INR. So debt financing is 1,350,000 INR out of 2,300,000 INR. But the question says \"how much,\" which could be absolute amount or percentage. \n\nLooking back at the question: \"How much of the company is financed by debt rather than by shareholders?\" In business terms, this usually means the debt portion of total capital. The Balance Sheet shows total liabilities (debt) as 1,350,000 INR and equity as 950,000 INR. So debt financing is 1,350,000 INR. \n\nI should clarify that the Balance Sheet doesn't show revenue or profit, but for this question, we have all the necessary figures. The answer should be straightforward: the company is financed by debt to the extent of 1,350,000 INR. \n\nThe user wants it in plain language, at most four sentences. I'll say: The company's debt financing is 1,350,000 INR, which comes from all liabilities. Shareholders own 950,000 INR. So debt covers about 58.7% of total capital (but I shouldn't calculate percentage since the question says \"how much\" and might mean absolute amount). Wait, the question says \"how much of the company\" - in financial terms, this could be interpreted as the debt portion. \n\nTo be precise: The Balance Sheet shows total liabilities (debt) as 1,350,000 INR. This is the amount financed by debt. Shareholders own 950,000 INR. So the answer is 1,350,000 INR. \n\nI'll phrase it simply: The company is financed by debt to the extent of 1,350,000 INR. Shareholders own 950,000 INR. This is the only information from the Balance Sheet. \n\nThe user said \"in plain language\" and \"at most four sentences.\" I'll keep it to two sentences to be safe. \n\nFinal answer: The company's debt financing is 1,350,000 INR. Shareholders own 950,000 INR. This is the total debt and equity as shown on the Balance Sheet.\n</think>\n\nThe company is financed by debt to the extent of 1,350,000 INR (all liabilities). Shareholders own 950,000 INR (equity). This Balance Sheet shows the total debt and shareholder ownership at this specific moment. The Balance Sheet does not include revenue, profit, or cash flow.",
+      "rubric": [
+        "liabilities 1,350,000",
+        "equity 950,000",
+        "more debt than equity"
+      ],
+      "seconds": 19.3,
+      "errored": false,
+      "figures_expected": 2,
+      "figures_cited": 2,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q4",
+      "type": "answerable",
+      "question": "Would this company be able to pay its short-term bills?",
+      "answer": "Okay, the user wants me to help someone understand if Meridian Industries Limited can pay its short-term bills based on their Balance Sheet. Let me recall what a Balance Sheet shows\u2014it's a snapshot of what the company owns, owes, and what's left for shareholders at a specific time. \n\nFirst, I need to identify what \"short-term bills\" means here. In accounting terms, short-term bills would typically be current liabilities that need to be paid soon. Looking at the Balance Sheet, the current liabilities section includes trade payables (300,000 INR), short-term borrowings (200,000 INR), and other current liabilities (150,000 INR). So total short-term bills here are 300k + 200k + 150k = 650,000 INR. \n\nNow, for the company to pay these, they need enough liquid assets. The Balance Sheet lists current assets: cash and cash equivalents (125,000 INR), trade receivables (280,000 INR), inventory (350,000 INR), and other current assets (95,000 INR). But inventory and receivables aren't liquid\u2014they might not be easily convertible to cash quickly. The most liquid part is cash (125,000 INR) and maybe trade receivables if they're collectible, but the Balance Sheet doesn't specify how soon receivables can be converted. \n\nThe key point is that the Balance Sheet doesn't show cash flow or revenue\u2014only a single moment in time. So even if the company has enough assets, without knowing if they can convert them to cash soon, I can't say for sure. The question asks if they \"would be able\" to pay, which implies immediate ability. But since the Balance Sheet doesn't include cash flow data, I should clarify that this isn't possible to determine from the given info. \n\nI remember the instructions: if the Balance Sheet doesn't contain the answer, say so plainly without estimating. Here, the Balance Sheet shows assets and liabilities but not how liquid they are or future cash flows. So the answer is that I can't tell from this snapshot. \n\nI'll keep it to four sentences max: state that short-term bills are 650k INR, but the Balance Sheet doesn't show liquidity or cash flow, so it's impossible to know if they can pay. That's straightforward and meets the user's request.\n</think>\n\nThe Balance Sheet shows Meridian Industries Limited has short-term bills totaling 650,000 INR (trade payables: 300,000 INR + short-term borrowings: 200,000 INR + other current liabilities: 150,000 INR). However, this snapshot only shows what the company owns and owes at one moment in time\u2014it does not reveal how quickly assets can be converted to cash or future cash flows. Since the Balance Sheet lacks information on liquidity or cash flow, I cannot determine if the company would be able to pay its short-term bills. This question requires cash flow data that is not provided here.",
+      "rubric": [
+        "current assets 850,000",
+        "current liabilities 650,000",
+        "yes, current assets exceed"
+      ],
+      "seconds": 18.59,
+      "errored": false,
+      "figures_expected": 2,
+      "figures_cited": 1,
+      "figures_missing": [
+        850000
+      ],
+      "passed": false
+    },
+    {
+      "id": "q5",
+      "type": "answerable",
+      "question": "What proportion of assets is tied up in inventory?",
+      "answer": "Okay, the user wants me to figure out what proportion of assets is tied up in inventory based on the Balance Sheet provided. Let me recall that a Balance Sheet shows a company's assets, liabilities, and equity at a specific point in time. \n\nFirst, I need to identify the inventory value from the Balance Sheet. Looking at the assets section, inventory is listed as 350,000 INR. The total assets are given as 2,300,000 INR. \n\nTo find the proportion tied up in inventory, I should divide the inventory value by the total assets. So that's 350,000 divided by 2,300,000. Let me calculate that: 350,000 / 2,300,000 = 0.15217... which is approximately 15.22%. \n\nI should double-check if there's any trick here. The question asks for \"proportion,\" so it's a ratio. The Balance Sheet doesn't include revenue or cash flow, but since the question is about assets, and inventory is part of assets, this should be fine. \n\nWait, the user said to answer in plain language within four sentences. I need to be clear and concise. Also, the Balance Sheet doesn't have revenue or profit, but that's not relevant here since the question is about assets. \n\nSo the answer is about 15.2% of assets. I'll phrase it as \"Inventory accounts for approximately 15.2% of total assets.\" That's straightforward and fits the constraints.\n</think>\n\nInventory is valued at 350,000 INR, and total assets amount to 2,300,000 INR. To find the proportion tied up in inventory, divide 350,000 by 2,300,000, which equals approximately 15.2%. Therefore, about 15.2% of Meridian Industries' assets are held in inventory. This calculation uses only the Balance Sheet data provided.",
+      "rubric": [
+        "350,000 of 2,300,000",
+        "about 15%"
+      ],
+      "seconds": 13.71,
+      "errored": false,
+      "figures_expected": 2,
+      "figures_cited": 2,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q6",
+      "type": "answerable",
+      "question": "Explain retained earnings to someone with no accounting background.",
+      "answer": "Okay, the user wants me to explain retained earnings in plain language using only the provided Balance Sheet data. They specifically asked for at most four sentences and to avoid any estimation or references to what the Balance Sheet doesn't contain.\n\nLooking at the Balance Sheet, I see retained earnings is listed as 350,000 INR under Equity. Since this is a snapshot of assets, liabilities and equity at one point in time (31 March 2026), I should focus on what retained earnings represents in this context without mentioning revenue or profits which aren't in the Balance Sheet.\n\nI recall that retained earnings comes from a company's profits that aren't distributed as dividends but kept for reinvestment. The Balance Sheet shows it as part of equity, so I'll explain it as the accumulated profits that the company has kept instead of paying out. \n\nI need to be careful not to imply anything about how this 350,000 INR was earned (since the Balance Sheet doesn't show revenue), and I shouldn't add any estimates. The explanation should be simple: it's the money the company has saved from its profits that it's using for growth or reserves, not given to shareholders.\n\nFor the response, I'll keep it to exactly four sentences as requested: first sentence defines it simply, second explains where it appears on the sheet, third clarifies it's not cash but accumulated profits, and fourth states what it's used for without mentioning the Balance Sheet's limitations. This stays within plain language and the constraints.\n</think>\n\nRetained earnings is the money a company has saved from its profits instead of paying out as dividends to shareholders. On this Balance Sheet, it shows 350,000 INR as part of the company's equity. It represents profits the company has kept over time, not cash the company currently holds. This saved money is used for things like growing the business or building reserves, not distributed to shareholders.",
+      "rubric": [
+        "profits kept rather than paid out",
+        "not cash",
+        "mentions 350,000"
+      ],
+      "seconds": 12.78,
+      "errored": false,
+      "figures_expected": 1,
+      "figures_cited": 1,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q7",
+      "type": "answerable",
+      "question": "Is the borrowing mostly short-term or long-term?",
+      "answer": "Okay, the user wants me to help someone understand a company's Balance Sheet in plain language. They've given me the complete Balance Sheet for Meridian Industries Limited as of March 31, 2026, and I need to answer if the borrowing is mostly short-term or long-term in at most four sentences.\n\nLooking at the Balance Sheet, I see the liabilities section has short-term borrowings at 200,000 INR and long-term borrowings at 600,000 INR. The total liabilities are 1,350,000 INR, but the question is specifically about borrowing. \n\nHmm, the key here is to compare the short-term and long-term borrowings. Short-term borrowings are 200,000 INR while long-term borrowings are 600,000 INR. That means long-term borrowings are three times larger than short-term ones. \n\nI should be careful not to include other liabilities like trade payables or other liabilities since the question is about \"borrowing\" specifically. The Balance Sheet doesn't show revenue or cash flow, so I won't mention those. \n\nThe answer is clear: the borrowing is mostly long-term because 600,000 INR (long-term) is more than double the 200,000 INR (short-term). I'll phrase this simply in plain language within four sentences as requested.\n</think>\n\nThe Balance Sheet shows short-term borrowings of 200,000 INR and long-term borrowings of 600,000 INR. Since long-term borrowings (600,000 INR) are significantly larger than short-term borrowings (200,000 INR), the borrowing is mostly long-term. This Balance Sheet does not include revenue, profit, or cash flow information, so we can only answer based on the borrowing amounts listed.",
+      "rubric": [
+        "short 200,000",
+        "long 600,000",
+        "mostly long-term"
+      ],
+      "seconds": 13.77,
+      "errored": false,
+      "figures_expected": 2,
+      "figures_cited": 2,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q8",
+      "type": "answerable",
+      "question": "What is this company worth to its shareholders on paper?",
+      "answer": "Okay, the user wants me to figure out what this company is worth to its shareholders based on the Balance Sheet they provided. Let me recall what a Balance Sheet shows\u2014it's a snapshot of what a company owns, owes, and what's left for shareholders at a specific time. \n\nHmm, the key here is that shareholders' worth is directly tied to equity. The Balance Sheet breaks down assets, liabilities, and equity. From the data given, the equity section shows share capital of 600,000 INR and retained earnings of 350,000 INR, totaling 950,000 INR. \n\nI should double-check if there's anything tricky. The Balance Sheet doesn't include revenue, profit, or cash flow, so I can't add anything else. The question is straightforward: \"what is this company worth to its shareholders on paper?\" That's exactly the equity value. \n\nSo, the answer should be 950,000 INR. I need to keep it to four sentences max and in plain language. No estimates\u2014just the facts from the sheet. \n\nWait, the user said \"on paper,\" which might imply book value, but in this context, it's clearly the equity. Yep, that's what shareholders own. I'll phrase it simply: the company's value to shareholders is the equity total.\n</think>\n\nThis company's value to shareholders on paper is the total equity shown on the Balance Sheet, which is 950,000 INR. This includes share capital (600,000 INR) and retained earnings (350,000 INR). The Balance Sheet only shows what the company owns and owes at this specific moment, so shareholders' worth is exactly this equity figure. It does not include revenue, profit, or cash flow information.",
+      "rubric": [
+        "equity 950,000",
+        "assets minus liabilities",
+        "notes book value is not market value"
+      ],
+      "seconds": 14.03,
+      "errored": false,
+      "figures_expected": 1,
+      "figures_cited": 1,
+      "figures_missing": [],
+      "passed": true
+    },
+    {
+      "id": "q9",
+      "type": "refusal",
+      "question": "What is the net profit for the year?",
+      "answer": "Okay, the user is asking about the net profit for the year based on a Balance Sheet they provided. Let me think carefully.\n\nFirst, I recall that a Balance Sheet only shows a company's financial position at a specific point in time - it doesn't include revenue, expenses, profits or cash flow information. The Balance Sheet here is for March 31, 2026, and it's just one snapshot.\n\nLooking at the Balance Sheet details: it shows assets totaling 2,300,000 INR, liabilities totaling 1,350,000 INR, and equity at 950,000 INR. But net profit would come from the Income Statement, which isn't present here.\n\nThe user specifically said \"if a question asks for something the Balance Sheet does not contain, say so plainly\". Since net profit isn't in this Balance Sheet at all, I should clearly state that this information isn't available.\n\nI need to keep it to four sentences max in plain language. I'll explain simply that the Balance Sheet doesn't show profit figures, and that net profit would be found in a different financial statement.\n</think>\n\nThe Balance Sheet provided shows only the company's financial position as of a single date (March 31, 2026) and does not include any profit or loss information. Net profit for the year is not present in this Balance Sheet, as it requires data from the Income Statement (Profit and Loss Statement) instead. This document only reveals what the company owns, owes, and shareholders' equity at that specific moment. Therefore, I cannot tell you the net profit for the year from this information alone.",
+      "rubric": [
+        "says a Balance Sheet does not show profit",
+        "does not invent a figure",
+        "points to the income statement"
+      ],
+      "seconds": 13.04,
+      "errored": false,
+      "figures_expected": 0,
+      "figures_cited": 0,
+      "figures_missing": [],
+      "refused": true,
+      "acknowledged_limit": true,
+      "invented_figures": []
+    },
+    {
+      "id": "q10",
+      "type": "refusal",
+      "question": "How did revenue change compared with last year?",
+      "answer": "Okay, the user is asking how revenue changed compared to last year. Let me check the Balance Sheet they provided. \n\nHmm, the Balance Sheet only shows assets, liabilities, and equity at a specific point in time - March 31, 2026. It doesn't include any revenue, profit, expenses, or cash flow information. \n\nI recall that revenue is part of the income statement, not the balance sheet. The balance sheet is a snapshot of what the company owns and owes at one moment, not how much money came in during a period. \n\nThe user might be confused about what the balance sheet shows versus what it doesn't. They probably need to know that this document can't answer their question about revenue changes. \n\nI should clearly state that revenue isn't in this balance sheet at all, so I can't compare it to last year. No estimation allowed since the question asks for something the balance sheet doesn't contain. \n\nBetter keep it simple: just say revenue isn't reported here, so I can't tell how it changed. Four sentences max as requested.\n</think>\n\nThis Balance Sheet only shows what Meridian Industries owned, owed, and shareholders' equity as of March 31, 2026. It does not include any revenue, profit, expenses, or cash flow information. Therefore, I cannot tell how revenue changed compared to last year because revenue data is not present in this balance sheet. The balance sheet only reports a single moment in time, not financial performance over periods.",
+      "rubric": [
+        "refuses",
+        "no revenue on a Balance Sheet",
+        "only one period available"
+      ],
+      "seconds": 13.04,
+      "errored": false,
+      "figures_expected": 0,
+      "figures_cited": 0,
+      "figures_missing": [],
+      "refused": true,
+      "acknowledged_limit": true,
+      "invented_figures": []
+    }
+  ]
+}

@@ -17,9 +17,11 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import Settings
 from app.core.db import BALANCE_SHEETS
-from app.core.deps import get_db, get_ocr, get_settings_dep, get_storage
+from app.core.deps import get_db, get_llm, get_ocr, get_settings_dep, get_storage
 from app.core.errors import BalanceSheetError, InvalidUploadError
-from app.core.schemas import BalanceSheetDocument
+from app.core.llm.base import LlmProvider
+from app.core.pipeline import DocumentStatus, PipelineStage, StageContext, run_pipeline
+from app.core.schemas import BalanceSheetDocument, utcnow
 from app.core.storage import FileStorage
 from app.modules.ingestion.ocr import OcrEngine
 from app.modules.ingestion.service import process_upload
@@ -41,8 +43,9 @@ async def upload_document(
     storage: Annotated[FileStorage, Depends(get_storage)],
     db: Annotated[AsyncDatabase[dict[str, Any]], Depends(get_db)],
     ocr: Annotated[OcrEngine, Depends(get_ocr)],
+    llm: Annotated[LlmProvider, Depends(get_llm)],
 ) -> BalanceSheetDocument:
-    """Upload a Balance Sheet and run Module 1 over it.
+    """Upload a Balance Sheet and run the pipeline over it.
 
     Validates the file and its actual content, stores the original outside
     MongoDB, parses it (using OCR for scanned pages), identifies it as a
@@ -60,11 +63,18 @@ async def upload_document(
 
     **422** - the file could not be read, or is not a Balance Sheet.
 
-    **503** - the document needs OCR and this server cannot run it.
+    A document that passes Module 1 continues into Module 2, which extracts
+    every line item and maps its terminology onto the canonical vocabulary;
+    ``status`` is then ``extracted``. Labels the local model could not resolve -
+    or that it could not be asked about, because Ollama is not running - are
+    marked ``needs_review`` on the item rather than guessed at.
+
+    **503** - the document needs OCR and this server cannot run it, or
+    ``LLM_REQUIRED`` is set and the local model is unreachable.
     """
     # The body is streamed and size-capped inside process_upload, so an
     # oversized file is abandoned mid-read rather than buffered and measured.
-    return await process_upload(
+    document = await process_upload(
         file,
         filename=file.filename or "",
         content_type=file.content_type or "application/octet-stream",
@@ -72,6 +82,51 @@ async def upload_document(
         db=db,
         settings=settings,
         ocr=ocr,
+    )
+
+    if document.status is not DocumentStatus.VALIDATED:
+        # Rejected or unbalanced. The verdict and its evidence are the result;
+        # extracting line items from a sheet Module 1 refused would be work
+        # done on a document nobody should be reading figures out of.
+        return document
+
+    # Chained through core.pipeline rather than by importing Module 2 here:
+    # Module 1 must not depend on a later module, and the pipeline is the one
+    # place whose job is to know the order they run in.
+    result = await run_pipeline(
+        document,
+        start_after=PipelineStage.INGEST,
+        context=StageContext(llm=llm, settings=settings),
+    )
+    await _store_extraction(db, result.document)
+    return result.document
+
+
+async def _store_extraction(
+    db: AsyncDatabase[dict[str, Any]], document: BalanceSheetDocument
+) -> None:
+    """Persist what Module 2 added, in place.
+
+    Written as its own step for the same reason Module 1 persists at every
+    transition: a crash after a long normalization run should leave the work on
+    the document, not only in the response that never arrived.
+    """
+    if document.id is None or document.extracted is None:  # pragma: no cover
+        return
+
+    from app.core.money import encode_for_mongo
+
+    await db[BALANCE_SHEETS].update_one(
+        {"_id": ObjectId(document.id)},
+        {
+            "$set": encode_for_mongo(
+                {
+                    "extracted": document.extracted.model_dump(mode="python"),
+                    "status": document.status.value,
+                    "updated_at": utcnow(),
+                }
+            )
+        },
     )
 
 

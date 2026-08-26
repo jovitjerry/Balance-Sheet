@@ -27,38 +27,40 @@ class TestStageRegistry:
     def test_stages_run_in_module_order(self) -> None:
         assert [info.module for info in STAGES] == [1, 2, 3, 4]
 
-    def test_only_ingest_is_built(self) -> None:
-        """Module 1 is complete; Modules 2-4 have not been started."""
+    def test_the_built_modules_are_the_ones_that_say_they_are(self) -> None:
+        """Modules 1 and 2 are complete; Modules 3-4 have not been started."""
         states = {info.stage: info.state for info in STAGES}
         assert states[PipelineStage.INGEST] is StageState.IMPLEMENTED
-        assert states[PipelineStage.EXTRACT] is StageState.NOT_IMPLEMENTED
+        assert states[PipelineStage.EXTRACT] is StageState.IMPLEMENTED
         assert states[PipelineStage.RATIOS] is StageState.NOT_IMPLEMENTED
         assert states[PipelineStage.INSIGHTS] is StageState.NOT_IMPLEMENTED
 
 
 class TestRunPipeline:
-    async def test_it_stops_at_extract_and_says_why(self) -> None:
-        result = await run_pipeline(_document())
-        assert result.stopped_at is PipelineStage.EXTRACT
+    async def test_it_stops_at_the_first_unbuilt_module_and_says_why(self) -> None:
+        """Starting after EXTRACT, the next gap is Module 3."""
+        result = await run_pipeline(_document(), start_after=PipelineStage.EXTRACT)
+
+        assert result.stopped_at is PipelineStage.RATIOS
         assert result.completed == []
         assert result.reason is not None
-        assert "Module 2" in result.reason
+        assert "Module 3" in result.reason
         assert "not implemented" in result.reason
 
     async def test_it_does_not_report_success_it_did_not_achieve(self) -> None:
-        result = await run_pipeline(_document())
+        result = await run_pipeline(_document(), start_after=PipelineStage.EXTRACT)
         assert result.document.extracted is None
-        assert result.document.equation_check is None
+
+    async def test_extraction_without_a_provider_refuses_rather_than_pretending(
+        self,
+    ) -> None:
+        """No model wired in is a wiring fault, not an empty Balance Sheet."""
+        with pytest.raises(StageNotImplemented, match="provider"):
+            await run_pipeline(_document())
 
 
 class TestUnimplementedModules:
     """Every unbuilt module raises StageNotImplemented, never a fake result."""
-
-    async def test_extraction(self) -> None:
-        from app.modules.extraction.service import extract
-
-        with pytest.raises(StageNotImplemented, match="Module 2"):
-            await extract(_document())
 
     def test_ratios(self) -> None:
         from app.modules.ratios.service import compute_ratios
@@ -144,4 +146,46 @@ class TestModuleBoundaries:
                 assert not name.startswith(forbidden), (
                     f"{path.name} imports {name} - Module 1 must not depend on "
                     "a later module"
+                )
+
+    def test_core_does_not_import_any_module(self) -> None:
+        """``core`` is the contract between modules, so it depends on none of them.
+
+        This is what makes shared code shareable. ``core/lines.py`` holds the
+        line view and the selected-period column logic that Module 1 and
+        Module 2 both read; the moment ``core`` reaches back into a module
+        package, that shared layer becomes one module's private property with
+        a second copy waiting to be written.
+
+        Two files are exempt, and only two: ``deps.py``, which hands the
+        assembled application's parts to a request, and ``pipeline.py``, whose
+        stated job is to be the orchestration boundary between modules. An
+        orchestrator that may not name what it orchestrates is not one. Both
+        are composition points rather than shared libraries - nothing imports
+        them but the application itself - so exempting them leaves the
+        invariant that matters intact: the code both modules *use* stays free
+        of either.
+        """
+        import ast
+        from pathlib import Path
+
+        import app.core as core
+
+        composition_points = {"deps.py", "pipeline.py"}
+
+        for path in sorted(Path(core.__path__[0]).rglob("*.py")):
+            if path.name in composition_points:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imported: list[str] = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.append(node.module)
+
+            for name in imported:
+                assert not name.startswith("app.modules"), (
+                    f"core/{path.name} imports {name} - core must not depend on "
+                    "any module"
                 )

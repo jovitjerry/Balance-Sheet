@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from statistics import median
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from app.core.errors import BalanceSheetError
+from app.core.lines import WordRow, group_into_lines
 from app.core.schemas import PositionedWord
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -33,11 +33,6 @@ logger = logging.getLogger(__name__)
 # Tesseract reports -1 for non-word boxes and low numbers for noise. Below this
 # a "word" is more likely to be a speck of scanner dust than a character.
 MIN_WORD_CONFIDENCE = 30.0
-
-# Two words belong to the same visual row when their vertical centres are
-# within this fraction of a typical word's height. Loose enough to survive the
-# baseline jitter of a scan, tight enough not to merge adjacent rows.
-LINE_GROUPING_TOLERANCE = 0.6
 
 
 class OcrUnavailable(BalanceSheetError):
@@ -54,34 +49,11 @@ class OcrUnavailable(BalanceSheetError):
 
 
 @dataclass
-class OcrLine:
-    """One reconstructed visual row, its words ordered left to right."""
-
-    words: list[PositionedWord] = field(default_factory=list)
-
-    @property
-    def text(self) -> str:
-        return " ".join(word.text for word in self.words)
-
-    @property
-    def top(self) -> float:
-        return min(word.top for word in self.words)
-
-    @property
-    def bottom(self) -> float:
-        return max(word.top + word.height for word in self.words)
-
-    def words_right_of(self, x: float) -> list[PositionedWord]:
-        """Words starting to the right of ``x`` - i.e. in a later column."""
-        return [word for word in self.words if word.left >= x]
-
-
-@dataclass
 class OcrPage:
     """What one recognised page yielded."""
 
     words: list[PositionedWord] = field(default_factory=list)
-    lines: list[OcrLine] = field(default_factory=list)
+    lines: list[WordRow] = field(default_factory=list)
     width: int = 0
     height: int = 0
 
@@ -108,48 +80,6 @@ class OcrEngine(Protocol):
         ...
 
     def recognise(self, image: Image) -> OcrPage: ...
-
-
-def group_into_lines(
-    words: list[PositionedWord], *, tolerance: float = LINE_GROUPING_TOLERANCE
-) -> list[OcrLine]:
-    """Rebuild visual rows from word boxes, top to bottom, left to right.
-
-    Grouping is geometric rather than taken from Tesseract's ``block``/``par``/
-    ``line`` numbering, because that numbering splits on layout: in a table it
-    routinely puts the label column in one block and the figures column in
-    another, so a row's label and its figure end up in different "lines". The
-    vertical centre of the box is the thing that actually says which row a word
-    is on.
-    """
-    if not words:
-        return []
-
-    band = median([word.height for word in words if word.height > 0] or [1]) * tolerance
-    band = max(band, 1.0)
-
-    ordered = sorted(words, key=lambda word: (word.top + word.height / 2, word.left))
-    lines: list[list[PositionedWord]] = []
-    current: list[PositionedWord] = []
-    current_centre = 0.0
-
-    for word in ordered:
-        centre = word.top + word.height / 2
-        if current and abs(centre - current_centre) > band:
-            lines.append(current)
-            current = []
-        if not current:
-            current_centre = centre
-        else:
-            # Track the running mean so a row that drifts downward across the
-            # page does not split halfway along.
-            current_centre = (current_centre * len(current) + centre) / (len(current) + 1)
-        current.append(word)
-
-    if current:
-        lines.append(current)
-
-    return [OcrLine(words=sorted(line, key=lambda word: word.left)) for line in lines]
 
 
 class TesseractOcrEngine:
@@ -259,14 +189,11 @@ def build_ocr_engine(language: str = "eng") -> OcrEngine:
 
 
 __all__ = [
-    "LINE_GROUPING_TOLERANCE",
     "MIN_WORD_CONFIDENCE",
     "OcrEngine",
-    "OcrLine",
     "OcrPage",
     "OcrUnavailable",
     "TesseractOcrEngine",
     "build_ocr_engine",
-    "group_into_lines",
     "render_pdf_page",
 ]

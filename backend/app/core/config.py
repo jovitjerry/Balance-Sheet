@@ -78,6 +78,41 @@ class Settings(BaseSettings):
     # statement with a scanned signed page - are ordinary.
     ocr_min_chars_per_page: int = Field(default=20, ge=0)
 
+    # ---- Module 2: local LLM via Ollama ----
+    ollama_host: str = Field(
+        default="http://localhost:11434", description="Where Ollama is listening."
+    )
+    # Selected 2026-08-26 by measurement, not reputation: 97% accuracy over 75
+    # labelled cases, clean schema-constrained output with no chain-of-thought
+    # leakage, 4.15s warm per label, and 6.4 GB on an 8 GB card. The
+    # finance-tuned candidate did not beat it and answered every ambiguous and
+    # most nonsense labels. Evidence and limitations:
+    # backend/benchmarks/results/MODEL_SELECTION.md
+    #
+    # Still a setting, deliberately. Module 4 will drive the same provider with
+    # different prompts and must choose its own model on its own evidence -
+    # this benchmark measured terminology mapping and nothing else.
+    ollama_model: str = Field(
+        default="qwen3:8b",
+        description="The pulled model used to normalize terminology (Module 2). "
+        "Selected by the benchmark in backend/benchmarks; see "
+        "results/MODEL_SELECTION.md.",
+    )
+    ollama_timeout_s: float = Field(default=120.0, gt=0)
+    # The KV cache grows with the context window, and 8 GB of VRAM is the
+    # binding constraint on this class of hardware. One label at a time needs
+    # nothing like a long context.
+    ollama_num_ctx: int = Field(default=4096, ge=512)
+    # Default false: extraction is deterministic and complete without a model,
+    # so an unreachable Ollama marks the terminology step needs_review rather
+    # than throwing away a good extraction. Set true in CI or for a demo, where
+    # a silently un-normalized document would be a false green.
+    llm_required: bool = Field(default=False)
+    # A policy floor, NOT a truth threshold. A model's stated confidence is not
+    # a calibrated probability; it may demote a mapping to review and may never
+    # rescue one that failed validation.
+    normalization_confidence_floor: float = Field(default=0.5, ge=0, le=1)
+
     # ---- File storage ----
     storage_backend: str = Field(default="local")
     storage_dir: Path = Field(default=BACKEND_DIR / "var" / "uploads")

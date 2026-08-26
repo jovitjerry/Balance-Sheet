@@ -9,15 +9,103 @@ The cells keep their **printed** text. Nothing here parses a value or
 interprets a label. It does ask whether a cell has the *shape* of a figure,
 because that is what tells one label's column from the next one's - but the
 shape is all it looks at, and no meaning is read out of any label.
+
+This lives in ``core`` for the reason :mod:`app.core.schemas` does: it is the
+contract between modules, not one module's policy. Module 1 reads it to find
+the three section totals and Module 2 reads it to extract every line item, and
+:func:`figure_for` in particular must be **one** implementation - two would let
+the modules disagree about which reporting period's column they are reading,
+on a document where both columns hold entirely plausible numbers.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from statistics import median
 
-from app.core.schemas import PreliminaryExtraction, SourcePage, SourceRef
-from app.modules.ingestion.amounts import looks_like_amount
-from app.modules.ingestion.ocr import group_into_lines
+from app.core.amounts import looks_like_amount
+from app.core.schemas import (
+    PeriodSelection,
+    PositionedWord,
+    PreliminaryExtraction,
+    SourcePage,
+    SourceRef,
+)
+
+# Two words belong to the same visual row when their vertical centres are
+# within this fraction of a typical word's height. Loose enough to survive the
+# baseline jitter of a scan, tight enough not to merge adjacent rows.
+LINE_GROUPING_TOLERANCE = 0.6
+
+
+@dataclass
+class WordRow:
+    """One visual row of positioned words, ordered left to right.
+
+    Built for scanned pages from OCR output *and* for digital pages from the
+    PDF text layer - the geometry is the same problem either way, which is why
+    this is not named for OCR.
+    """
+
+    words: list[PositionedWord] = field(default_factory=list)
+
+    @property
+    def text(self) -> str:
+        return " ".join(word.text for word in self.words)
+
+    @property
+    def top(self) -> float:
+        return min(word.top for word in self.words)
+
+    @property
+    def bottom(self) -> float:
+        return max(word.top + word.height for word in self.words)
+
+    def words_right_of(self, x: float) -> list[PositionedWord]:
+        """Words starting to the right of ``x`` - i.e. in a later column."""
+        return [word for word in self.words if word.left >= x]
+
+
+def group_into_lines(
+    words: list[PositionedWord], *, tolerance: float = LINE_GROUPING_TOLERANCE
+) -> list[WordRow]:
+    """Rebuild visual rows from word boxes, top to bottom, left to right.
+
+    Grouping is geometric rather than taken from Tesseract's ``block``/``par``/
+    ``line`` numbering, because that numbering splits on layout: in a table it
+    routinely puts the label column in one block and the figures column in
+    another, so a row's label and its figure end up in different "lines". The
+    vertical centre of the box is the thing that actually says which row a word
+    is on.
+    """
+    if not words:
+        return []
+
+    band = median([word.height for word in words if word.height > 0] or [1]) * tolerance
+    band = max(band, 1.0)
+
+    ordered = sorted(words, key=lambda word: (word.top + word.height / 2, word.left))
+    lines: list[list[PositionedWord]] = []
+    current: list[PositionedWord] = []
+    current_centre = 0.0
+
+    for word in ordered:
+        centre = word.top + word.height / 2
+        if current and abs(centre - current_centre) > band:
+            lines.append(current)
+            current = []
+        if not current:
+            current_centre = centre
+        else:
+            # Track the running mean so a row that drifts downward across the
+            # page does not split halfway along.
+            current_centre = (current_centre * len(current) + centre) / (len(current) + 1)
+        current.append(word)
+
+    if current:
+        lines.append(current)
+
+    return [WordRow(words=sorted(line, key=lambda word: word.left)) for line in lines]
 
 
 @dataclass(frozen=True)
@@ -238,10 +326,72 @@ def _lines_from_text(page: SourcePage) -> list[DocumentLine]:
     ]
 
 
+# --------------------------------------------------------------------------
+# Reading the selected reporting period's column
+# --------------------------------------------------------------------------
+
+
+def column_x_for(lines: list[DocumentLine], period: PeriodSelection | None) -> float | None:
+    """The horizontal position of the selected period's column, if known."""
+    if period is None:
+        return None
+    target = period.selected.source
+    for line in lines:
+        if line.page_index != target.page_index or line.row != target.row:
+            continue
+        for cell in line.cells:
+            if cell.column == target.column:
+                return cell.x
+    return None
+
+
+def figure_for(
+    segment: LabelSegment, column: int | None, column_x: float | None
+) -> Cell | None:
+    """Pick the cell holding this label's figure for the selected period.
+
+    **Single-period scope depends on this function.** A comparative Balance
+    Sheet prints the prior year a couple of centimetres away and equally
+    numeric, so choosing the wrong cell here silently analyses the wrong year -
+    and every figure still looks entirely reasonable. Module 1 and Module 2
+    both call this, deliberately: two implementations could disagree, and
+    nothing downstream would notice.
+
+    Geometry first where it exists: the figure nearest the selected column's
+    horizontal position. With no period selected there is one column to choose
+    from, and the left-most figure is it.
+
+    Only the figures belonging to this label are considered. On a horizontal
+    sheet the rest of the row belongs to a different label entirely, and
+    reading across the whole row would hand a total the neighbouring column's
+    figure.
+    """
+    figures = [cell for cell in segment.figures if looks_like_amount(cell.text)]
+    if not figures:
+        return None
+
+    if column_x is not None:
+        positioned = [cell for cell in figures if cell.x is not None]
+        if positioned:
+            return min(positioned, key=lambda cell: abs(cell.x - column_x))
+
+    if column is not None:
+        exact = [cell for cell in figures if cell.column == column]
+        if exact:
+            return exact[0]
+
+    return figures[0]
+
+
 __all__ = [
+    "LINE_GROUPING_TOLERANCE",
     "Cell",
     "DocumentLine",
     "LabelSegment",
+    "WordRow",
     "build_lines",
     "build_page_lines",
+    "column_x_for",
+    "figure_for",
+    "group_into_lines",
 ]

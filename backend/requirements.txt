@@ -22,3 +22,10 @@ pytesseract>=0.3.13
 # Pillow arrives via pdfplumber, but OCR depends on it directly (rasterised
 # page -> PIL image -> Tesseract), so it is declared rather than assumed.
 Pillow>=10.4
+
+# ---- Module 2: local LLM ----
+# The Ollama HTTP client. Ollama itself is a **separate system install** with a
+# model pulled - like Tesseract, the pip side alone does nothing. See README.
+# No LangChain: one endpoint and one response shape is smaller hand-written
+# than configured through a framework.
+httpx>=0.27

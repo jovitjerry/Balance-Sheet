@@ -14,6 +14,7 @@ from fastapi import Request
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import Settings
+from app.core.llm.base import LlmProvider
 from app.core.storage import FileStorage
 from app.modules.ingestion.ocr import OcrEngine
 
@@ -40,4 +41,15 @@ def get_ocr(request: Request) -> OcrEngine:
     return request.app.state.ocr
 
 
-__all__ = ["get_db", "get_ocr", "get_settings_dep", "get_storage"]
+def get_llm(request: Request) -> LlmProvider:
+    """The local model provider. Built once at startup, running or not.
+
+    Availability is not checked here, for the same reason it is not checked in
+    :func:`get_ocr`: a document whose labels all match the canonical spellings
+    never needs a model, and refusing every upload because Ollama is down would
+    be wrong. The check happens where a label actually has to be interpreted.
+    """
+    return request.app.state.llm
+
+
+__all__ = ["get_db", "get_llm", "get_ocr", "get_settings_dep", "get_storage"]

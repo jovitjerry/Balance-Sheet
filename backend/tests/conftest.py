@@ -13,10 +13,18 @@ nobody has to remember to mark one.
 **OCR tests** need the Tesseract *system binary*. They are exactly the tests
 that use the ``ocr_engine`` fixture, and are marked ``ocr`` the same way.
 
+**LLM tests** need a running Ollama with the configured model pulled. They are
+exactly the tests that use the ``ollama_provider`` fixture, and are marked
+``llm`` the same way. Almost nothing needs this: the normalization ladder is
+exercised end to end against a stub provider, so what remains here is the
+transport itself.
+
     pytest                              # everything; integration and ocr skip if unavailable
-    pytest -m "not integration and not ocr"  # pure unit tests, nothing external
+    pytest -m "not integration and not ocr and not llm"   # pure unit; nothing external
     pytest -m integration --require-mongo    # integration only; unreachable Atlas FAILS
     pytest -m ocr --require-ocr              # OCR only; missing Tesseract FAILS
+    pytest -m "llm and not benchmark" --require-ollama   # transport check only
+    pytest -m benchmark --require-ollama     # the model comparison; slow, opt-in
 
 ``--require-mongo`` and ``--require-ocr`` exist because a skip is the right
 default for local unit work but the wrong answer in CI or when you are
@@ -43,6 +51,7 @@ from app.modules.ingestion.ocr import OcrEngine, TesseractOcrEngine
 
 REQUIRE_MONGO = "--require-mongo"
 REQUIRE_OCR = "--require-ocr"
+REQUIRE_OLLAMA = "--require-ollama"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -66,6 +75,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+    parser.addoption(
+        REQUIRE_OLLAMA,
+        action="store_true",
+        default=False,
+        help=(
+            "Fail LLM tests when Ollama is unreachable or the model is not "
+            "pulled, instead of skipping them. Use in CI and when verifying "
+            "the local model setup."
+        ),
+    )
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
@@ -80,6 +101,8 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
         if "ocr_engine" in fixtures:
             item.add_marker(pytest.mark.ocr)
+        if "ollama_provider" in fixtures:
+            item.add_marker(pytest.mark.llm)
 
 
 @pytest.fixture
@@ -110,6 +133,47 @@ def ocr_engine(request: pytest.FixtureRequest) -> OcrEngine:
             pytest.fail(f"{message} ({REQUIRE_OCR} was passed)", pytrace=False)
         pytest.skip(message)
     return engine
+
+
+@pytest.fixture
+def ollama_provider(request: pytest.FixtureRequest):
+    """A real Ollama provider, or a clear stop if it cannot serve the model.
+
+    Almost no test needs this. The normalization ladder - every validation
+    rule, every failure mode - runs against a stub provider, because a live
+    model gives no reliable way to produce a malformed answer on demand. What
+    is left here is the transport, which only a live server can prove.
+    """
+    from app.core.llm.ollama import build_llm_provider
+
+    config = get_settings()
+    provider = build_llm_provider(
+        host=config.ollama_host,
+        model=config.ollama_model,
+        timeout_s=config.ollama_timeout_s,
+        num_ctx=config.ollama_num_ctx,
+    )
+    installed = provider.installed_models()
+    if installed is None:
+        message = (
+            f"Ollama is not reachable at {config.ollama_host}. Install it from "
+            "https://ollama.com and start it."
+        )
+    elif config.ollama_model not in installed:
+        # A running server with nothing pulled is what a fresh install looks
+        # like, and it fails quite differently from a server that is down.
+        # Saying which one it is turns a confusing 404 into an instruction.
+        message = (
+            f"Ollama is running but {config.ollama_model!r} is not pulled. Run "
+            f"'ollama pull {config.ollama_model}'."
+            + (f" Installed: {', '.join(installed)}." if installed else " Nothing is installed yet.")
+        )
+    else:
+        return provider
+
+    if request.config.getoption(REQUIRE_OLLAMA):
+        pytest.fail(f"{message} ({REQUIRE_OLLAMA} was passed)", pytrace=False)
+    pytest.skip(message)
 
 
 @pytest_asyncio.fixture
