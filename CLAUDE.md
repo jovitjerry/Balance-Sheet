@@ -21,16 +21,84 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 
 | Module | Package | Responsibility |
 |---|---|---|
-| 1 | `ingestion` | Upload & Validation — file validation, preliminary PDF/Excel parsing, OCR when required, Balance Sheet identification, required-field and accounting-equation validation |
-| 2 | `extraction` | Full Data Extraction & Normalization |
+| 1 | `ingestion` | Upload & Validation — file validation, preliminary PDF/Excel parsing, OCR when required, Balance Sheet identification, required-field and accounting-equation validation. **Implemented.** |
+| 2 | `extraction` | Full Data Extraction & Normalization — complete line-item extraction, section/subsection structure, and terminology mapping onto a versioned canonical vocabulary using a local LLM through Ollama. **Implemented.** |
 | 3 | `ratios` | Deterministic Financial Ratio Engine |
 | 4 | `insights` | LLM + RAG explanation and chat |
 
 ### Module boundaries
 
 - Module 1 performs **only enough** extraction to establish document readability, Balance Sheet identity, the three section totals, required fields, and the accounting equation. It holds **no general terminology dictionary**.
-- Module 2 owns **complete line-item extraction and all normalization**. Do not duplicate normalization logic into Module 1; Module 1's total-line locator delegates to Module 2's vocabulary once that exists.
+- Module 2 owns **complete line-item extraction and all normalization**. Its vocabulary lives in `extraction/taxonomy.py` and nowhere else. Do not duplicate it into Module 1.
 - Keep these boundaries clear. A change that blurs them needs to be raised, not absorbed.
+- The narrow phrase set Module 1 *is* allowed to know lives in `ingestion/anchors.py`: document titles, the three section headers, the three total lines. Nothing else. A line-item synonym appearing there means the boundary has been crossed — `tests/test_pipeline.py::TestModuleBoundaries` enforces this.
+- Module 1 records currency and scale (`UnitHint`) but **never applies them**. A sheet printed "in thousands" is stored with its figures exactly as printed. Scaling is normalization, and normalization is Module 2's.
+
+### The shared layer
+
+`core/` holds what **both** modules read, and depends on no module. That is
+what makes it shareable, and `tests/test_pipeline.py::TestModuleBoundaries`
+enforces it.
+
+| `core/` module | Why it is shared, not owned |
+|---|---|
+| `lines.py` | The line/segment view of a document, plus `figure_for` — the selected-period column choice. **One implementation, deliberately.** Module 1 picks its totals with it and Module 2 picks every line item with it; two implementations could disagree and Module 2 would silently extract the comparative column Module 1 rejected, on a document where both columns hold entirely plausible numbers. |
+| `amounts.py` | Reading a printed figure as a `Decimal`. A value parse, not terminology. |
+| `text.py` | Label shape only — case, punctuation, `+`/`&` → `and`. Module 1 matches anchors with it; Module 2 keys its identity dictionary and its cache with it, and those two must agree. |
+| `llm/` | The `LlmProvider` seam. Module 4 will drive the same local model with different prompts. |
+
+Exactly two files in `core/` may name a module, because their job is
+composition rather than sharing: `deps.py` (hands the assembled application's
+parts to a request) and `pipeline.py` (the orchestration boundary — an
+orchestrator that may not name what it orchestrates is not one).
+
+## Module 2 constraints
+
+- **Extraction and normalization are separate, in that order.** Extraction
+  answers "what did the document say?" and completes before any model is
+  consulted, so a document is fully extracted with Ollama switched off and a
+  normalization failure can never touch a figure.
+- **The LLM maps terminology and nothing else.** It is never shown a figure,
+  never asked to compute, and never allowed to alter a value, a currency or a
+  unit scale. The accounting equation stays in Module 1.
+- **The canonical vocabulary is closed and versioned.** It is handed to the
+  model as a JSON Schema `enum`, which Ollama compiles into a decoding grammar,
+  so an invented category is structurally unreachable. Python re-validates
+  anyway — a grammar cannot prevent a truncated response, and the
+  section-fit check is one no grammar could express.
+- **A rejected answer never becomes a guess.** Malformed JSON, a label outside
+  the taxonomy, a label contradicting its printed section, a confidence below
+  the floor, an unreachable model — every one lands on `needs_review` with
+  the line item intact. `needs_review` is a real answer; `other_*` is not its
+  synonym (that means the *document* printed a residual line).
+- **`confidence` is the model's own opinion, not a calibrated probability.** It
+  may demote a mapping to review. It may never rescue one that failed a check.
+- **The original label is never overwritten.** `label` is what was printed;
+  `normalization.canonical_label` sits beside it. "Trade Debtors" and "Trade
+  Receivables" stay distinguishable while mapping to one concept.
+- **The identity dictionary is identity only** — derived from the taxonomy,
+  never hand-written. Every genuine synonym goes to the model; a broad alias
+  table would make the model decorative and the benchmark meaningless.
+- **Ollama unreachable degrades, it does not fail.** Unresolved labels become
+  `needs_review`/`unavailable` and the extraction still stands. `LLM_REQUIRED=true`
+  turns that into a 503 for CI and demos.
+- **`temperature=0`, and the deciding model and taxonomy version are stored on
+  every mapping** — an academic result that moves between runs is not a result.
+- **The model is chosen by measurement.** `backend/benchmarks/` scores
+  candidates on 75 cases, with abstention scored *separately* from accuracy: a
+  model that never declines scores well on the easy cases and is dangerous on
+  the ambiguous ones. Do not change `OLLAMA_MODEL` on reputation.
+- **Selected model: `qwen3:8b`** (2026-08-26) — 97% accuracy, clean
+  schema-constrained output, 4.15s warm per label, 6.4 GB on an 8 GB card. The
+  finance-tuned candidate did not beat it and answered every ambiguous label.
+  Record, evidence and limitations:
+  `backend/benchmarks/results/MODEL_SELECTION.md`. Re-run the benchmark before
+  changing it; the accuracy lead is one case and the cold start is the slowest
+  of the four.
+- **This does not settle Module 4.** It will drive the same `LlmProvider` with
+  its own prompts and must select its own model on its own evidence — the
+  Q&A benchmark does **not** support `qwen3:8b` for explanation work. Keep
+  `OLLAMA_MODEL` a setting; do not hard-code a model anywhere.
 
 ## Implementation constraints
 
@@ -40,7 +108,12 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 - The client is created and closed in the FastAPI **lifespan** handler and reached through the `get_db()` dependency. Creating it at import time breaks the event loop under pytest.
 - **Original uploaded files go to the `FileStorage` abstraction (`core/storage.py`), never inline in a MongoDB document.**
 - Raw parser output is preserved in `PreliminaryExtraction` with source page metadata, separately from the structured `ExtractedBalanceSheet`. Raw table cells stay **strings** — `"(2,300)"` and `"1,234.5"` must remain recoverable as printed.
-- **Unimplemented pipeline stages raise `StageNotImplemented`** — never a silent success, and never a fabricated result.
+- **Module 2 computes no ratio.** It produces the structured data Module 3 will consume and stops there.
+- **Unimplemented pipeline stages raise `StageNotImplemented`** — never a silent success, and never a fabricated result. The same rule governs a missing capability: a scanned page with no OCR engine raises `OcrUnavailable` rather than yielding an empty page, because an empty page would go on to be reported as "not a Balance Sheet" — a verdict the system never actually reached.
+- **Module 1 parsing stack is fixed:** pdfplumber (digital PDF text/tables), pypdfium2 (rasterisation), Tesseract via pytesseract behind the `OcrEngine` protocol, openpyxl (`.xlsx` only — `.xls` is out of scope). PyMuPDF was rejected on AGPL-3.0 licensing.
+- **Word positions are kept for every PDF page, digital and scanned alike** (`SourcePage.words`). A Balance Sheet's figure sits far right of its label, and on a comparative sheet the *column* is what identifies the reporting period — that lives only in the geometry. Flat reading order loses it.
+- **Rejection semantics are hybrid.** Not a Balance Sheet (unreadable, or a different statement) → raise, and the router answers 4xx. A Balance Sheet that fails validation (missing total, or does not balance) → return normally with the evidence; the router answers 201 and `status` is `rejected`. Either way the record is **kept** — a rejected submission is audit evidence, not rubbish.
+- **`encode_for_mongo` is the storage encoding boundary.** BSON has no date-without-time type, so a bare `date` is stored as an ISO string there. `datetime` is checked first, since `datetime` is a subclass of `date`.
 
 ## Security
 
@@ -48,6 +121,9 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 - **`.env` must remain gitignored.** Never commit it, copy its values into another file, echo it into logs, or print it in output.
 - `.env.example` documents every key and contains **no secrets**. Only `MONGODB_URI` is left blank to be filled in; optional keys are commented out beside their defaults, because an uncommented key with an empty value is a validation error rather than "use the default".
 - Storage keys derive from the file's SHA-256, **never from the client-supplied filename** — uploaded filenames are attacker-controlled and are the classic path-traversal vector.
+- `MONGODB_URI` is a pydantic `SecretStr`. An Atlas SRV URI embeds the database password, and a plain `str` prints in full wherever a `Settings` object is repr'd — pytest's local-variable dump on a failure being the one that bites. Unwrap it with `.get_secret_value()` only in `create_client`.
+- **Uploads are validated by content, not by extension**, and the size cap is enforced *while streaming*. Buffering first and measuring afterwards would make `MAX_UPLOAD_BYTES` a memory-exhaustion vector rather than a defence against one.
+- **API responses expose no internals** — no stack traces, filesystem paths, library names, or connection strings. Every caller-visible error message is one this codebase wrote deliberately; parser exceptions are logged and replaced, never forwarded. `tests/modules/ingestion/test_router.py::TestResponsesLeakNothing` enforces this.
 
 ## Development
 
@@ -56,21 +132,26 @@ Windows + PowerShell. Chain commands with `;`, not `&&`.
 ```powershell
 # Backend
 cd backend; .\.venv\Scripts\Activate.ps1; uvicorn app.main:app --reload   # http://localhost:8000
+cd backend; .\.venv\Scripts\Activate.ps1; pytest
 
-# Tests
-pytest                                   # everything; integration skips if Atlas is down
-pytest -m "not integration"              # unit tests only - no cluster needed
-pytest -m integration --require-mongo    # integration only; unreachable Atlas FAILS
+# Test modes. Markers are applied automatically from fixture usage:
+#   test_db -> integration, ocr_engine -> ocr
+pytest -m "not integration and not ocr"   # pure unit tests, nothing external
+pytest -m integration --require-mongo     # unreachable Atlas FAILS instead of skipping
+pytest -m ocr --require-ocr               # missing Tesseract FAILS instead of skipping
 
 # Frontend
 cd frontend; npm run dev                                                  # http://localhost:5173
 ```
 
-- Tests needing a live cluster are those using the `test_db` fixture; the `integration` marker is applied automatically from fixture usage, so never hand-apply it. They run against `<MONGODB_DB>_test`, which is dropped on teardown.
-- Use `--require-mongo` in CI and when verifying Atlas: a connection failure reported as "skipped" is a false green.
 - New logic is written **test-first**.
 - Git is **local only** for now — no remote, no push. GitHub is configured later by the maintainer.
 
 ## Setup gotcha
 
 OCR requires the **Tesseract system binary**, not just a pip package. Installing `pytesseract` alone will not work.
+
+Normalization requires **Ollama** installed as a program with a model pulled
+(`ollama pull qwen3:8b`). The pip side talks to it over HTTP and cannot supply
+it. Without it the API still runs and still extracts every line item; labels
+that are not already canonical are marked `needs_review`.
