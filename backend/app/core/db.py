@@ -47,7 +47,9 @@ def create_client(settings: Settings) -> AsyncMongoClient[dict[str, Any]]:
     breaks under pytest.
     """
     return AsyncMongoClient(
-        settings.mongodb_uri,
+        # The one place the credential is unwrapped. Everywhere else the URI
+        # stays a SecretStr so it cannot be printed by accident.
+        settings.mongodb_uri.get_secret_value(),
         server_api=ServerApi("1", strict=False, deprecation_errors=True),
         serverSelectionTimeoutMS=settings.mongodb_timeout_ms,
         tz_aware=True,

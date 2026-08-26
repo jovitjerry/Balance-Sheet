@@ -14,6 +14,7 @@ from app.core.db import create_client, ensure_indexes, get_database, ping
 from app.core.errors import register_exception_handlers
 from app.core.pipeline import STAGES
 from app.core.storage import build_storage
+from app.modules.ingestion.ocr import build_ocr_engine
 from app.modules.ingestion.router import router as ingestion_router
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +36,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.client = client
     app.state.db = get_database(client, settings)
     app.state.storage = build_storage(settings.storage_backend, settings.storage_dir)
+    app.state.ocr = build_ocr_engine(settings.ocr_language)
+    if settings.ocr_enabled and not app.state.ocr.available():
+        # A warning, not a failure. Documents with a usable text layer are
+        # unaffected; only a scanned page will be refused, and it is refused at
+        # the point it is met rather than by taking the API down at boot.
+        logger.warning(
+            "Tesseract is not available - scanned documents will be refused. "
+            "The pytesseract pip package alone is not enough; install the "
+            "Tesseract system binary."
+        )
 
     try:
         await ping(client)

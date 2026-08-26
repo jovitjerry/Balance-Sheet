@@ -6,3 +6,19 @@ pymongo>=4.17
 pydantic>=2.9
 pydantic-settings>=2.6
 python-multipart>=0.0.12
+
+# ---- Module 1: parsing ----
+# pdfplumber (MIT, pure Python on top of pdfminer.six) for digital PDF text and
+# table extraction. PyMuPDF was rejected: AGPL-3.0.
+pdfplumber>=0.11
+# Rasterises PDF pages for OCR. Chosen over pdf2image because it ships the
+# PDFium binary in the wheel - no Poppler system install to explain.
+pypdfium2>=4.30
+# .xlsx only. The legacy .xls binary format is out of scope.
+openpyxl>=3.1
+# Thin wrapper over the Tesseract CLI. The **Tesseract system binary** is a
+# separate install - the pip package alone does nothing. See README.
+pytesseract>=0.3.13
+# Pillow arrives via pdfplumber, but OCR depends on it directly (rasterised
+# page -> PIL image -> Tesseract), so it is declared rather than assumed.
+Pillow>=10.4

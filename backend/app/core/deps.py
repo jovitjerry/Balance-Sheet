@@ -15,6 +15,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import Settings
 from app.core.storage import FileStorage
+from app.modules.ingestion.ocr import OcrEngine
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -29,4 +30,14 @@ def get_storage(request: Request) -> FileStorage:
     return request.app.state.storage
 
 
-__all__ = ["get_db", "get_settings_dep", "get_storage"]
+def get_ocr(request: Request) -> OcrEngine:
+    """The OCR engine. Built once at startup, whether or not it can run.
+
+    Availability is not checked here: a document with a usable text layer never
+    needs OCR, and refusing every upload because Tesseract is missing would be
+    wrong. The check happens at the point a scanned page is actually met.
+    """
+    return request.app.state.ocr
+
+
+__all__ = ["get_db", "get_ocr", "get_settings_dep", "get_storage"]

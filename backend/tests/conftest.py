@@ -2,22 +2,27 @@
 
 The suite has two kinds of test:
 
-**Unit tests** - equation, money, storage, schemas, pipeline, health - need
-nothing external and always run.
+**Unit tests** - equation, money, storage, schemas, pipeline, health, parsing,
+identification - need nothing external and always run.
 
 **Integration tests** need a reachable MongoDB cluster. They are exactly the
 tests that use the ``test_db`` fixture, and the ``integration`` marker is
 applied to them automatically (see :func:`pytest_collection_modifyitems`), so
 nobody has to remember to mark one.
 
-    pytest                              # everything; integration skips if Atlas is down
-    pytest -m "not integration"         # unit tests only, no cluster needed
-    pytest -m integration --require-mongo   # integration only; unreachable Atlas FAILS
+**OCR tests** need the Tesseract *system binary*. They are exactly the tests
+that use the ``ocr_engine`` fixture, and are marked ``ocr`` the same way.
 
-``--require-mongo`` exists because a skip is the right default for local unit
-work but the wrong answer in CI or when you are deliberately verifying Atlas:
-there, a connection failure silently passing as "skipped" would be a false
-green. The flag turns that skip into a hard failure.
+    pytest                              # everything; integration and ocr skip if unavailable
+    pytest -m "not integration and not ocr"  # pure unit tests, nothing external
+    pytest -m integration --require-mongo    # integration only; unreachable Atlas FAILS
+    pytest -m ocr --require-ocr              # OCR only; missing Tesseract FAILS
+
+``--require-mongo`` and ``--require-ocr`` exist because a skip is the right
+default for local unit work but the wrong answer in CI or when you are
+deliberately verifying that dependency: there, a missing binary or a failed
+connection silently passing as "skipped" would be a false green. The flags turn
+those skips into hard failures.
 """
 
 from __future__ import annotations
@@ -34,8 +39,10 @@ from app.core.config import Settings, get_settings
 from app.core.db import CODEC_OPTIONS, create_client, ping
 from app.core.storage import LocalFileStorage
 from app.main import app
+from app.modules.ingestion.ocr import OcrEngine, TesseractOcrEngine
 
 REQUIRE_MONGO = "--require-mongo"
+REQUIRE_OCR = "--require-ocr"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -48,19 +55,31 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "skipping them. Use in CI and when verifying Atlas connectivity."
         ),
     )
+    parser.addoption(
+        REQUIRE_OCR,
+        action="store_true",
+        default=False,
+        help=(
+            "Fail OCR tests when the Tesseract binary is missing instead of "
+            "skipping them. Use in CI and when verifying the OCR install."
+        ),
+    )
 
 
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Mark every test that needs a live cluster as ``integration``.
+    """Mark tests by the external dependency their fixtures imply.
 
-    Derived from fixture usage rather than hand-applied markers, so a new
-    integration test cannot be miscategorised by forgetting the decorator.
+    Derived from fixture usage rather than hand-applied markers, so a new test
+    cannot be miscategorised by forgetting the decorator.
     """
     for item in items:
-        if "test_db" in getattr(item, "fixturenames", ()):
+        fixtures = getattr(item, "fixturenames", ())
+        if "test_db" in fixtures:
             item.add_marker(pytest.mark.integration)
+        if "ocr_engine" in fixtures:
+            item.add_marker(pytest.mark.ocr)
 
 
 @pytest.fixture
@@ -71,6 +90,26 @@ def settings() -> Settings:
 @pytest.fixture
 def storage(tmp_path: Path) -> LocalFileStorage:
     return LocalFileStorage(tmp_path / "uploads")
+
+
+@pytest.fixture
+def ocr_engine(request: pytest.FixtureRequest) -> OcrEngine:
+    """A Tesseract engine, or a clear stop if the binary is not installed.
+
+    OCR needs the **Tesseract system binary**; the ``pytesseract`` pip package
+    is only a wrapper around a command line. When it is missing this skips by
+    default, or fails loudly under ``--require-ocr``.
+    """
+    engine = TesseractOcrEngine(language=get_settings().ocr_language)
+    if not engine.available():
+        message = (
+            "Tesseract is not installed or not on PATH. The pytesseract pip "
+            "package alone is not enough - install the Tesseract binary."
+        )
+        if request.config.getoption(REQUIRE_OCR):
+            pytest.fail(f"{message} ({REQUIRE_OCR} was passed)", pytrace=False)
+        pytest.skip(message)
+    return engine
 
 
 @pytest_asyncio.fixture
@@ -84,6 +123,28 @@ async def client() -> AsyncIterator[AsyncClient]:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as http:
             yield http
+
+
+@pytest_asyncio.fixture
+async def api_client(
+    test_db: AsyncDatabase[dict[str, Any]], storage: LocalFileStorage
+) -> AsyncIterator[AsyncClient]:
+    """An HTTP client whose routes use the throwaway database and storage.
+
+    The dependencies are overridden rather than the app being reconfigured, so
+    a route test can never write to the real ``balancesheet`` database.
+    """
+    from app.core.deps import get_db, get_storage
+
+    async with app.router.lifespan_context(app):
+        app.dependency_overrides[get_db] = lambda: test_db
+        app.dependency_overrides[get_storage] = lambda: storage
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                yield http
+        finally:
+            app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture

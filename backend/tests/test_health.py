@@ -24,7 +24,7 @@ class TestPipelineEndpoint:
         response = await client.get("/api/v1/pipeline")
         assert response.status_code == 200
         stages = {stage["stage"]: stage for stage in response.json()["stages"]}
-        assert stages["ingest"]["state"] == "partial"
+        assert stages["ingest"]["state"] == "implemented"
         assert stages["extract"]["state"] == "not_implemented"
         assert stages["ratios"]["state"] == "not_implemented"
         assert stages["insights"]["state"] == "not_implemented"

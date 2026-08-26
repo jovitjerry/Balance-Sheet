@@ -11,7 +11,7 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py -> backend/app/core -> backend/app -> backend -> repo root
@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     )
 
     # ---- MongoDB ----
-    mongodb_uri: str = Field(description="MongoDB Atlas connection string.")
+    # SecretStr, not str: an Atlas SRV URI embeds the database password. A plain
+    # str prints in full wherever a Settings object is repr'd - pytest's local
+    # variable dumps on a failure, an exception handler, a debug log - which
+    # writes the credential into places nobody thinks of as secret-bearing.
+    # SecretStr renders as '**********' and only yields the value to an explicit
+    # .get_secret_value() call.
+    mongodb_uri: SecretStr = Field(description="MongoDB Atlas connection string.")
     mongodb_db: str = Field(default="balancesheet", description="Database name.")
     # Keep this short: the default 30s means an unreachable cluster hangs the
     # health check and the test suite instead of failing promptly.
@@ -44,7 +50,10 @@ class Settings(BaseSettings):
 
     # ---- Uploads ----
     max_upload_bytes: int = Field(default=25 * 1024 * 1024, ge=1)
-    allowed_extensions: list[str] = Field(default=[".pdf", ".xlsx", ".xls"])
+    # .xlsx only. The legacy .xls binary format is out of scope: openpyxl cannot
+    # read it, and supporting it would mean a second parser for a format Excel
+    # itself has not written by default since 2007.
+    allowed_extensions: list[str] = Field(default=[".pdf", ".xlsx"])
 
     # ---- Accounting equation ----
     # Effective threshold is max(ABS, REL * |total_assets|). Published balance
@@ -52,6 +61,22 @@ class Settings(BaseSettings):
     # a large company or meaninglessly loose for a small one.
     equation_tolerance_abs: Decimal = Field(default=Decimal("1"), ge=Decimal("0"))
     equation_tolerance_rel: Decimal = Field(default=Decimal("0.005"), ge=Decimal("0"))
+
+    # ---- OCR ----
+    ocr_enabled: bool = Field(
+        default=True,
+        description="Turn OCR off to refuse scanned documents outright rather "
+        "than attempting to read them.",
+    )
+    ocr_language: str = Field(default="eng", description="Tesseract language code.")
+    # 300 dpi is the accuracy floor Tesseract's own documentation recommends;
+    # below it, digit confusion (5/6, 1/7) climbs sharply, and a misread digit
+    # in a Balance Sheet is worse than a slow one.
+    ocr_dpi: int = Field(default=300, ge=72, le=600)
+    # A PDF page with fewer extractable characters than this is treated as
+    # scanned. Judged per page, not per document: mixed filings - a digital
+    # statement with a scanned signed page - are ordinary.
+    ocr_min_chars_per_page: int = Field(default=20, ge=0)
 
     # ---- File storage ----
     storage_backend: str = Field(default="local")

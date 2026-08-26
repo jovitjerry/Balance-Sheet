@@ -27,9 +27,10 @@ class TestStageRegistry:
     def test_stages_run_in_module_order(self) -> None:
         assert [info.module for info in STAGES] == [1, 2, 3, 4]
 
-    def test_only_ingest_is_partially_built(self) -> None:
+    def test_only_ingest_is_built(self) -> None:
+        """Module 1 is complete; Modules 2-4 have not been started."""
         states = {info.stage: info.state for info in STAGES}
-        assert states[PipelineStage.INGEST] is StageState.PARTIAL
+        assert states[PipelineStage.INGEST] is StageState.IMPLEMENTED
         assert states[PipelineStage.EXTRACT] is StageState.NOT_IMPLEMENTED
         assert states[PipelineStage.RATIOS] is StageState.NOT_IMPLEMENTED
         assert states[PipelineStage.INSIGHTS] is StageState.NOT_IMPLEMENTED
@@ -71,14 +72,76 @@ class TestUnimplementedModules:
         with pytest.raises(StageNotImplemented, match="Module 4"):
             await explain(_document())
 
-    async def test_module_1_parsing(self) -> None:
-        from app.modules.ingestion.parsing import parse
 
-        with pytest.raises(StageNotImplemented, match="Module 1"):
-            await parse(b"", _document().source)
+class TestModuleBoundaries:
+    """Module 1 must not have absorbed work that belongs to Module 2."""
 
-    def test_module_1_identification(self) -> None:
-        from app.modules.ingestion.identification import is_balance_sheet
+    def test_module_1_holds_no_line_item_vocabulary(self) -> None:
+        """anchors.py is total lines and section headers - nothing more.
 
-        with pytest.raises(StageNotImplemented, match="Module 1"):
-            is_balance_sheet(None)  # type: ignore[arg-type]
+        The moment a line-item synonym appears there, Module 2's vocabulary has
+        a competing half-copy in Module 1 that will drift out of step with it.
+        """
+        from app.modules.ingestion import anchors
+
+        every_phrase = " ".join(
+            phrase
+            for group in (
+                anchors.TITLE_PHRASES,
+                anchors.ASSETS_HEADERS,
+                anchors.LIABILITIES_HEADERS,
+                anchors.EQUITY_HEADERS,
+                anchors.COMBINED_HEADERS,
+                anchors.TOTAL_ASSETS_PHRASES,
+                anchors.TOTAL_LIABILITIES_PHRASES,
+                anchors.TOTAL_EQUITY_PHRASES,
+                anchors.COMBINED_TOTAL_PHRASES,
+            )
+            for phrase in group
+        ).lower()
+
+        for line_item_term in (
+            "receivable",
+            "payable",
+            "inventor",
+            "cash",
+            "goodwill",
+            "depreciation",
+            "borrowing",
+            "provision",
+            "prepaid",
+            "debtor",
+            "creditor",
+        ):
+            assert line_item_term not in every_phrase, (
+                f"{line_item_term!r} is line-item vocabulary and belongs to "
+                "Module 2, not to Module 1's anchors"
+            )
+
+    def test_module_1_does_not_import_modules_2_to_4(self) -> None:
+        """The dependency runs one way. Module 1 knows nothing downstream.
+
+        Read from the parsed import statements rather than by searching the
+        text, so that a docstring *describing* the boundary - which several of
+        these files carry - is not mistaken for a breach of it.
+        """
+        import ast
+        from pathlib import Path
+
+        import app.modules.ingestion as ingestion
+
+        forbidden = ("app.modules.extraction", "app.modules.ratios", "app.modules.insights")
+        for path in Path(ingestion.__path__[0]).glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imported: list[str] = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.append(node.module)
+
+            for name in imported:
+                assert not name.startswith(forbidden), (
+                    f"{path.name} imports {name} - Module 1 must not depend on "
+                    "a later module"
+                )

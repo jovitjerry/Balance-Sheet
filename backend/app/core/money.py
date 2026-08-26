@@ -10,6 +10,7 @@ the boundary, so no module has to think about it.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, localcontext
 from typing import Annotated, Any
 
@@ -80,13 +81,26 @@ def to_decimal128(value: Decimal) -> Decimal128:
 
 
 def encode_for_mongo(value: Any) -> Any:
-    """Recursively convert ``Decimal`` to ``Decimal128`` in a dumped document.
+    """Prepare a dumped document for writing: the storage encoding boundary.
+
+    ``Decimal`` becomes ``Decimal128``, and a bare ``date`` becomes an ISO
+    string. BSON has no date-without-time type at all and refuses to encode
+    one, so a reporting period end date would otherwise fail the insert
+    outright. An ISO string round-trips exactly and pydantic parses it straight
+    back into a ``date`` on read, which storing a midnight ``datetime`` would
+    not - that silently invents a time and a timezone the document never had.
 
     Apply to the result of ``model_dump()`` immediately before writing. JSON
     responses do NOT go through this - pydantic serializes ``Decimal`` directly.
     """
     if isinstance(value, Decimal):
         return to_decimal128(value)
+    # datetime is a subclass of date, so it must be tested first or every
+    # timestamp in the document would be flattened to a date string.
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return value.isoformat()
     if isinstance(value, dict):
         return {key: encode_for_mongo(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):

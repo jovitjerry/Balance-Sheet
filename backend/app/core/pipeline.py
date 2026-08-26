@@ -25,6 +25,7 @@ class PipelineStage(str, Enum):
 
 
 class StageState(str, Enum):
+    IMPLEMENTED = "implemented"
     PARTIAL = "partial"
     NOT_IMPLEMENTED = "not_implemented"
 
@@ -45,9 +46,10 @@ STAGES: tuple[StageInfo, ...] = (
     StageInfo(
         PipelineStage.INGEST,
         1,
-        "Upload & Validation (file validation, storage and the accounting-equation "
-        "check are implemented; parsing, OCR and identification are not)",
-        StageState.PARTIAL,
+        "Upload & Validation (file and content validation, PDF/Excel parsing, "
+        "OCR for scanned pages, Balance Sheet identification, current-period "
+        "selection, section totals and the accounting-equation check)",
+        StageState.IMPLEMENTED,
     ),
     StageInfo(
         PipelineStage.EXTRACT,
