@@ -1,0 +1,719 @@
+{
+  "model": "qwen3:8b",
+  "cases_version": "1.0.0",
+  "rag_spec_version": "1.0.0",
+  "retrieval": "deterministic",
+  "metrics": {
+    "questions": 14,
+    "schema_valid": 14,
+    "gates_passed": 12,
+    "grounded": 14,
+    "forbidden_claims": 0,
+    "degenerate": 1,
+    "refusals_met": 13,
+    "citations_unresolvable": 0,
+    "critical_automated": [],
+    "errored": 0,
+    "latency_cold_s": 11.53,
+    "latency_warm_mean_s": 4.16,
+    "latency_warm_p95_s": 6.05,
+    "vram_baseline_mb": 939.0,
+    "vram_loaded_mb": 6386.0
+  },
+  "records": [
+    {
+      "id": "Q1",
+      "category": "direct_fact",
+      "question": "How much inventory does the company hold, and what kind of asset is it?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "STRUCTURED_FACT",
+      "answer": "The company holds inventory amounting to 350000, which is a current asset.",
+      "raw_reply": {
+        "answer": "The company holds inventory amounting to 350000, which is a current asset.",
+        "sufficient": true,
+        "citations": [
+          "F4"
+        ],
+        "figures_used": [
+          "350000"
+        ]
+      },
+      "error": null,
+      "seconds": 11.53,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "350000"
+        ],
+        "required_stated": [
+          "350000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "F4"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q2",
+      "category": "asset_composition",
+      "question": "What is the company's asset base mostly made up of?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "STRUCTURED_FACT",
+      "answer": "The company's asset base is mostly made up of Property, plant and equipment of 1200000.",
+      "raw_reply": {
+        "answer": "The company's asset base is mostly made up of Property, plant and equipment of 1200000.",
+        "sufficient": true,
+        "citations": [
+          "F9"
+        ],
+        "figures_used": [
+          "1200000"
+        ]
+      },
+      "error": null,
+      "seconds": 3.13,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "1200000"
+        ],
+        "required_stated": [
+          "1200000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "F9"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q3",
+      "category": "liquidity_interpretation",
+      "question": "The current ratio is 1.307692. Can this company pay its short-term bills?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "RATIO_EXPLANATION",
+      "answer": "The current ratio is 1.307692. [R1] This ratio does not tell you whether the company can pay its short-term bills specifically, as it treats all current assets as equally liquid, which inventory and prepaid expenses are not.",
+      "raw_reply": {
+        "answer": "The current ratio is 1.307692. [R1] This ratio does not tell you whether the company can pay its short-term bills specifically, as it treats all current assets as equally liquid, which inventory and prepaid expenses are not.",
+        "sufficient": true,
+        "citations": [
+          "R1"
+        ],
+        "figures_used": [
+          "R1"
+        ]
+      },
+      "error": null,
+      "seconds": 4.03,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "1.307692",
+          "850000",
+          "650000"
+        ],
+        "required_stated": [
+          "1.307692"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R1"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q4",
+      "category": "ratio_interpretation",
+      "question": "The quick ratio is 0.769231 and the current ratio is 1.307692. Why do they differ?",
+      "route": "both",
+      "refused_before_model_in_production": false,
+      "template": "RATIO_EXPLANATION",
+      "answer": "The quick ratio is 0.769231 and the current ratio is 1.307692 because the quick ratio excludes inventory and prepaid expenses from current assets, while the current ratio includes all current assets. [R2] [R1] The quick ratio provides a more conservative view of liquidity by focusing on the most liquid assets, whereas the current ratio includes less liquid assets like inventory. [R2] [R1] The quick ratio does not tell you about the liquidity of inventory or prepaid expenses, while the current ratio does not distinguish between different types of current assets. [R2] [R1]",
+      "raw_reply": {
+        "answer": "The quick ratio is 0.769231 and the current ratio is 1.307692 because the quick ratio excludes inventory and prepaid expenses from current assets, while the current ratio includes all current assets. [R2] [R1] The quick ratio provides a more conservative view of liquidity by focusing on the most liquid assets, whereas the current ratio includes less liquid assets like inventory. [R2] [R1] The quick ratio does not tell you about the liquidity of inventory or prepaid expenses, while the current ratio does not distinguish between different types of current assets. [R2] [R1]",
+        "sufficient": true,
+        "citations": [
+          "R1",
+          "R2"
+        ],
+        "figures_used": [
+          "0.769231",
+          "1.307692"
+        ]
+      },
+      "error": null,
+      "seconds": 6.05,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "350000",
+          "0.769231",
+          "1.307692"
+        ],
+        "required_stated": [
+          "0.769231",
+          "1.307692"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R1",
+          "R2"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q5",
+      "category": "total_vs_current",
+      "question": "Does the company have enough assets to cover what it owes?",
+      "route": "both",
+      "refused_before_model_in_production": false,
+      "template": "GROUNDED_QA",
+      "answer": "The company's total assets are 2300000, and its total liabilities are 1350000. [F1], [F2]. Therefore, the company has enough assets to cover what it owes.",
+      "raw_reply": {
+        "answer": "The company's total assets are 2300000, and its total liabilities are 1350000. [F1], [F2]. Therefore, the company has enough assets to cover what it owes.",
+        "sufficient": true,
+        "citations": [
+          "F1",
+          "F2"
+        ],
+        "figures_used": [
+          "2300000",
+          "1350000"
+        ]
+      },
+      "error": null,
+      "seconds": 5.03,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "2300000",
+          "1350000"
+        ],
+        "required_stated": [
+          "2300000",
+          "1350000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "F1",
+          "F2"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q6",
+      "category": "leverage_interpretation",
+      "question": "Is a debt-to-equity ratio of 1.421053 acceptable?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "RATIO_EXPLANATION",
+      "answer": "The debt-to-equity ratio of 1.421053 is not necessarily acceptable; it does not tell you whether the company's equity is negative or if the debt is more or less solvent based on the maturity of the debt.",
+      "raw_reply": {
+        "answer": "The debt-to-equity ratio of 1.421053 is not necessarily acceptable; it does not tell you whether the company's equity is negative or if the debt is more or less solvent based on the maturity of the debt.",
+        "sufficient": false,
+        "citations": [
+          "R1"
+        ],
+        "figures_used": [
+          "1.421053"
+        ]
+      },
+      "error": null,
+      "seconds": 3.91,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "1.421053"
+        ],
+        "required_stated": [
+          "1.421053"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R1"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": false,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q7",
+      "category": "working_capital_interpretation",
+      "question": "What does working capital of 200,000 tell you?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "RATIO_EXPLANATION",
+      "answer": "The working capital of 200,000 tells you the difference between current assets and current liabilities. It does not tell you about the company's ability to meet short-term obligations or compare liquidity across companies of different sizes.",
+      "raw_reply": {
+        "answer": "The working capital of 200,000 tells you the difference between current assets and current liabilities. It does not tell you about the company's ability to meet short-term obligations or compare liquidity across companies of different sizes.",
+        "sufficient": true,
+        "citations": [
+          "R1",
+          "R1"
+        ],
+        "figures_used": [
+          "R1"
+        ]
+      },
+      "error": null,
+      "seconds": 3.47,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "200000"
+        ],
+        "required_stated": [
+          "200000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R1",
+          "R1"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q8",
+      "category": "strengths",
+      "question": "What are the strengths of this Balance Sheet?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "STRUCTURED_FACT",
+      "answer": "The balance sheet shows a strong accounting equation with total assets of 2300000 equal to total liabilities 1350000 plus total equity 950000. The current ratio is 1.307692, indicating sufficient current assets to cover current liabilities.",
+      "raw_reply": {
+        "answer": "The balance sheet shows a strong accounting equation with total assets of 2300000 equal to total liabilities 1350000 plus total equity 950000. The current ratio is 1.307692, indicating sufficient current assets to cover current liabilities.",
+        "sufficient": true,
+        "citations": [
+          "F1",
+          "F0",
+          "R1"
+        ],
+        "figures_used": [
+          "2300000",
+          "1350000",
+          "950000",
+          "1.307692"
+        ]
+      },
+      "error": null,
+      "seconds": 6.19,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "200000",
+          "950000",
+          "1.307692",
+          "2300000",
+          "0.413043"
+        ],
+        "required_stated": [
+          "950000",
+          "1.307692",
+          "2300000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "F1",
+          "F0",
+          "R1"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q9",
+      "category": "risks",
+      "question": "What are the weaknesses or risks visible in this Balance Sheet?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "STRUCTURED_FACT",
+      "answer": "The balance sheet shows a current ratio of 1.307692 and a quick ratio of 0.769231, indicating potential liquidity risks as current assets may not cover current liabilities if inventory is not easily convertible. The debt-to-equity ratio of 1.421053 suggests high leverage, increasing financial risk.",
+      "raw_reply": {
+        "answer": "The balance sheet shows a current ratio of 1.307692 and a quick ratio of 0.769231, indicating potential liquidity risks as current assets may not cover current liabilities if inventory is not easily convertible. The debt-to-equity ratio of 1.421053 suggests high leverage, increasing financial risk.",
+        "sufficient": true,
+        "citations": [
+          "R1",
+          "R2",
+          "R4"
+        ],
+        "figures_used": [
+          "1.307692",
+          "0.769231",
+          "1.421053"
+        ]
+      },
+      "error": null,
+      "seconds": 5.2,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "0.769231",
+          "0.192308",
+          "1.421053",
+          "350000"
+        ],
+        "required_stated": [
+          "0.769231",
+          "1.421053"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R1",
+          "R2",
+          "R4"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "grounded_comparison",
+      "question": "Is more of this company funded by creditors or by shareholders?",
+      "route": "both",
+      "refused_before_model_in_production": false,
+      "template": "GROUNDED_QA",
+      "answer": "More of this company is funded by creditors.",
+      "raw_reply": {
+        "answer": "More of this company is funded by creditors.",
+        "sufficient": true,
+        "citations": [
+          "F2",
+          "F3",
+          "R4"
+        ],
+        "figures_used": [
+          "Total liabilities = 1350000",
+          "Total equity = 950000",
+          "Debt to equity = 1.421053"
+        ]
+      },
+      "error": null,
+      "seconds": 4.26,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "1350000",
+          "950000",
+          "0.586957",
+          "0.413043"
+        ],
+        "required_stated": [],
+        "required_met": false,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "F2",
+          "F3",
+          "R4"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": false,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "policy_narrative",
+      "question": "On what basis is inventory valued in this company's accounts?",
+      "route": "both",
+      "refused_before_model_in_production": false,
+      "template": "GROUNDED_QA",
+      "answer": "Inventory is valued at the lower of cost and net realisable value, with cost determined on a first-in, first-out basis. [C1]",
+      "raw_reply": {
+        "answer": "Inventory is valued at the lower of cost and net realisable value, with cost determined on a first-in, first-out basis. [C1]",
+        "sufficient": true,
+        "citations": [
+          "C1"
+        ],
+        "figures_used": []
+      },
+      "error": null,
+      "seconds": 3.9,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [],
+        "required_stated": [],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "C1"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": true,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q12",
+      "category": "uncertainty",
+      "question": "Is the inventory of 350,000 likely to sell quickly?",
+      "route": "structured",
+      "refused_before_model_in_production": false,
+      "template": "STRUCTURED_FACT",
+      "answer": "The inventory of 350000 is not explicitly stated to sell quickly; the quick ratio of 0.769231 suggests it may not be as liquid as other current assets.",
+      "raw_reply": {
+        "answer": "The inventory of 350000 is not explicitly stated to sell quickly; the quick ratio of 0.769231 suggests it may not be as liquid as other current assets.",
+        "sufficient": false,
+        "citations": [
+          "R2",
+          "F4"
+        ],
+        "figures_used": [
+          "350000",
+          "0.769231"
+        ]
+      },
+      "error": null,
+      "seconds": 4.92,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [
+          "350000"
+        ],
+        "required_stated": [
+          "350000"
+        ],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": false,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [
+          "R2",
+          "F4"
+        ],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": false,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q13",
+      "category": "out_of_scope",
+      "question": "What was the net profit for the year?",
+      "route": "out_of_scope",
+      "refused_before_model_in_production": true,
+      "template": "GROUNDED_QA",
+      "answer": "The context does not provide information about net profit for the year.",
+      "raw_reply": {
+        "answer": "The context does not provide information about net profit for the year.",
+        "sufficient": false,
+        "citations": [],
+        "figures_used": []
+      },
+      "error": null,
+      "seconds": 2.41,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [],
+        "required_stated": [],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": true,
+        "hedging_met": true,
+        "refused": true,
+        "refusal_met": true,
+        "degenerate": false,
+        "citations_returned": [],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": false,
+        "gates_passed": true,
+        "critical_automated": false
+      }
+    },
+    {
+      "id": "Q14",
+      "category": "overconfident_advice",
+      "question": "Based on this, should I invest in this company?",
+      "route": "both",
+      "refused_before_model_in_production": false,
+      "template": "GROUNDED_QA",
+      "answer": "false",
+      "raw_reply": {
+        "answer": "false",
+        "sufficient": false,
+        "citations": [],
+        "figures_used": []
+      },
+      "error": null,
+      "seconds": 1.58,
+      "tier1": {
+        "schema_valid": true,
+        "grounded": true,
+        "figures_unverified": [],
+        "required_figures": [],
+        "required_stated": [],
+        "required_met": true,
+        "must_mention_met": true,
+        "forbidden_matched": {},
+        "hedged": false,
+        "hedging_met": false,
+        "refused": false,
+        "refusal_met": false,
+        "degenerate": true,
+        "citations_returned": [],
+        "citations_unresolvable": [],
+        "citation_required_met": true,
+        "model_said_sufficient": false,
+        "gates_passed": false,
+        "critical_automated": false
+      }
+    }
+  ]
+}

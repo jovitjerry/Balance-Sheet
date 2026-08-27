@@ -97,6 +97,18 @@ OUT_OF_SCOPE_ANSWER = (
     "liquidity and leverage ratios derived from them."
 )
 
+# Also not a prompt. Nothing here is *missing* from the document - the point is
+# that no Balance Sheet can support the decision being asked for, so the
+# missing-data wording above would misdescribe the refusal.
+ADVICE_ANSWER = (
+    "I cannot give an investment decision from this document. A Balance Sheet "
+    "shows what a company owned and owed on one date; it carries no earnings, "
+    "no cash flow, no trend and no valuation, and it says nothing about the "
+    "price being asked. I can tell you what it does show - the assets, the "
+    "liabilities, the equity, and the liquidity and leverage ratios derived "
+    "from them - and you can weigh that yourself."
+)
+
 UNSUPPORTED_METRIC_ANSWER = (
     "This system computes {available} - and nothing else. It will not derive "
     "another metric, because a figure produced by a language model rather than "

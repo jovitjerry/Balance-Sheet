@@ -129,7 +129,11 @@ async def answer_question(
             question,
             decision,
             reason=REASON_OUT_OF_SCOPE,
-            text=prompts.OUT_OF_SCOPE_ANSWER.format(
+            # Advice and missing data are both out of scope for different
+            # reasons, and the missing-data wording misdescribes the first.
+            text=prompts.ADVICE_ANSWER
+            if decision.asks_for_advice
+            else prompts.OUT_OF_SCOPE_ANSWER.format(
                 terms=_english_list(decision.out_of_scope_terms)
             ),
         )

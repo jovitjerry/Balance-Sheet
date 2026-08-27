@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from app.core.schemas import BalanceSheetDocument, RetrievalRoute
-from app.core.text import normalise
+from app.core.text import matches_any, normalise
 from app.modules.extraction import taxonomy
 from app.modules.ratios import definitions
 
@@ -84,6 +84,28 @@ OUT_OF_SCOPE_PHRASES: tuple[str, ...] = (
 )
 
 
+# Asking for a recommendation, as opposed to asking about the figures. Refused
+# unconditionally and without a model, because a single-period Balance Sheet
+# supports no investment decision - it carries no earnings, no cash flow, no
+# trend, no valuation and no price - and that is knowable without asking.
+#
+# Every entry is multi-word on purpose. `long_term_investments` and
+# `short_term_investments` are real categories, so a bare "invest" would refuse
+# every question about the investments a company actually holds, which would be
+# a worse failure than the one this prevents.
+ADVICE_PHRASES: tuple[str, ...] = (
+    "should i invest", "should we invest", "should i buy", "should we buy",
+    "should i sell", "should we sell", "should i avoid", "should we avoid",
+    "should i put money", "would you invest", "would you buy",
+    "do you recommend", "would you recommend", "recommend investing",
+    "recommend buying", "recommend selling", "good investment",
+    "bad investment", "safe investment", "solid investment",
+    "worth investing", "worth buying", "investment advice",
+    "financial advice", "your advice", "advise me", "is it a buy",
+    "is it a sell", "invest in this", "invest in them",
+)
+
+
 @dataclass(frozen=True)
 class RouteDecision:
     """Where a question goes, and everything that decided it.
@@ -100,6 +122,13 @@ class RouteDecision:
     matched_narrative: tuple[str, ...] = ()
     matched_interpretive: tuple[str, ...] = ()
     out_of_scope_terms: tuple[str, ...] = ()
+    asks_for_advice: bool = False
+    """Whether the question asked for a recommendation rather than a figure.
+
+    Carried separately from ``out_of_scope_terms`` because the refusal reads
+    differently: nothing is *missing* from the document, it is that no Balance
+    Sheet can support the decision being asked for.
+    """
 
     @property
     def needs_text(self) -> bool:
@@ -128,6 +157,20 @@ def route(
     if not text:
         return RouteDecision(
             route=RetrievalRoute.BOTH, reason="empty question; retrieve everything"
+        )
+
+    # Advice is checked first and refused unconditionally. Unlike a missing
+    # figure - which a question can work around by also naming something
+    # answerable - a recommendation cannot be half-given, so a concept match
+    # must not rescue it.
+    advice = matches_any(text, ADVICE_PHRASES)
+    if advice is not None:
+        return RouteDecision(
+            route=RetrievalRoute.OUT_OF_SCOPE,
+            reason="the question asks for a recommendation, which no Balance "
+            "Sheet on its own can support",
+            out_of_scope_terms=(advice,),
+            asks_for_advice=True,
         )
 
     # Out-of-scope spans are removed before concepts are matched, so that the
@@ -360,6 +403,7 @@ def asks_for_unsupported_metric(question: str, decision: RouteDecision) -> bool:
 
 
 __all__ = [
+    "ADVICE_PHRASES",
     "OUT_OF_SCOPE_PHRASES",
     "RouteDecision",
     "asks_for_unsupported_metric",

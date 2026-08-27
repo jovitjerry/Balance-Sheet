@@ -170,10 +170,32 @@ def _value_of(match: re.Match[str]) -> Decimal | None:
     except InvalidOperation:  # pragma: no cover - the pattern only matches digits
         return None
 
+    bracketed = match.group("open") is not None and match.group("close") is not None
     negative = match.group("sign") is not None or (
-        match.group("open") is not None and match.group("close") is not None
+        bracketed and _is_amount(match.group("digits"), match.group("fraction"))
     )
     return -value if negative else value
+
+
+def _is_amount(digits: str, fraction: str | None) -> bool:
+    """Whether a parenthesised number is a figure rather than a list marker.
+
+    ``(2,300)`` is the accountant's minus and must stay negative. ``(1)`` and
+    ``(2)`` in "because: (1) ... and (2) ..." are enumeration, and reading them
+    as -1 and -2 marks a perfectly grounded answer as ungrounded - which costs a
+    regeneration and can end in refusing a good answer, penalising a model for
+    how it formats prose.
+
+    The two are told apart by shape: a monetary amount on these documents
+    carries a thousands separator, a decimal part, or at least three digits. A
+    bare one- or two-digit number in brackets is a marker or a note reference.
+
+    Getting the threshold slightly wrong is safe in a way the original bug was
+    not. Context and answer go through this same function, so a consistently
+    mis-parsed ``(99)`` still matches itself on both sides. The list-marker case
+    was asymmetric - the answer invented a -1 that no context could contain.
+    """
+    return "," in digits or fraction is not None or len(digits) >= 3
 
 
 def _matches(value: Decimal, allowed: frozenset[Decimal]) -> bool:

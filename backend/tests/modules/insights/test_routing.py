@@ -114,6 +114,73 @@ class TestOutOfScope:
         )
 
 
+class TestInvestmentAdviceIsRefusedDeterministically:
+    """Asking for a recommendation must never reach a model.
+
+    Found by the Module 4 reasoning benchmark: "should I invest in this
+    company?" routed to BOTH, reached the model, and two of four candidates
+    answered with an avoid recommendation - one of them justifying it with the
+    quick ratio. A single-period Balance Sheet supports no investment decision,
+    and that is knowable without asking a model, so it is refused here rather
+    than left to prompt wording to discourage.
+
+    Unlike the other out-of-scope terms, advice is refused **unconditionally**.
+    A missing figure can be worked around when the question also names something
+    answerable; a recommendation cannot be half-given.
+    """
+
+    def test_the_benchmark_question(self) -> None:
+        decision = route("Based on this, should I invest in this company?")
+        assert decision.route is RetrievalRoute.OUT_OF_SCOPE
+        assert decision.asks_for_advice
+
+    def test_variants(self) -> None:
+        for question in (
+            "Should I buy shares in this company?",
+            "Should I sell my holding?",
+            "Is this a good investment?",
+            "Would you recommend investing here?",
+            "Do you recommend buying?",
+            "Is it worth investing in this business?",
+            "Should we invest in them?",
+            "What is your investment advice?",
+            "Should I avoid this company?",
+        ):
+            assert route(question).route is RetrievalRoute.OUT_OF_SCOPE, question
+
+    def test_advice_is_refused_even_when_the_question_names_a_real_concept(
+        self,
+    ) -> None:
+        """A recommendation cannot be half-given, so a concept match must not
+        rescue it the way it rescues a mixed factual question."""
+        decision = route("Given inventory of 350,000, should I invest?")
+        assert decision.route is RetrievalRoute.OUT_OF_SCOPE
+        assert decision.asks_for_advice
+
+
+class TestQuestionsAboutInvestmentsAreNotAdvice:
+    """`long_term_investments` and `short_term_investments` are real categories.
+
+    The refusal must key on asking for a recommendation, not on the word
+    "invest" - otherwise every question about the investments a company holds
+    would be refused, which is a worse failure than the one being fixed.
+    """
+
+    def test_asking_about_held_investments_still_routes_to_the_figures(self) -> None:
+        for question in (
+            "How much is held in long-term investments?",
+            "What are the short-term investments worth?",
+            "How much has the company invested in subsidiaries?",
+        ):
+            decision = route(question)
+            assert decision.route is not RetrievalRoute.OUT_OF_SCOPE, question
+            assert not decision.asks_for_advice, question
+
+    def test_the_investment_categories_are_still_matched(self) -> None:
+        decision = route("How much is held in long-term investments?")
+        assert "long_term_investments" in decision.matched_concepts
+
+
 class TestConceptsThatOnlyLookOutOfScope:
     """The traps. Each of these IS on a Balance Sheet and must not be refused."""
 

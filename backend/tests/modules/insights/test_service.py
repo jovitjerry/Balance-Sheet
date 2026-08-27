@@ -166,6 +166,75 @@ class TestRefusalsThatNeverReachTheModel:
         )
         assert "liquidity and leverage ratios" in (answer.answer or "")
 
+    async def test_investment_advice_never_reaches_the_model(
+        self, settings: Settings
+    ) -> None:
+        """The benchmark's Q14 gap. SilentProvider raises if it is called at all.
+
+        Two of four candidates answered "should I invest?" with an avoid
+        recommendation, one justifying it with the quick ratio. A Balance Sheet
+        supports no investment decision, so the refusal is deterministic rather
+        than left to prompt wording to discourage.
+        """
+        answer = await answer_question(
+            analyzed_document(),
+            "Based on this, should I invest in this company?",
+            provider=SilentProvider(),
+            settings=settings,
+        )
+
+        assert answer.status is AnswerStatus.REFUSED
+        assert answer.route is RetrievalRoute.OUT_OF_SCOPE
+        assert answer.reason == service.REASON_OUT_OF_SCOPE
+        assert answer.model is None
+
+    async def test_the_advice_refusal_explains_itself_sensibly(
+        self, settings: Settings
+    ) -> None:
+        """The missing-data wording would read as nonsense here.
+
+        Nothing is absent from the document; the point is that no Balance Sheet
+        can support the decision being asked for.
+        """
+        answer = await answer_question(
+            analyzed_document(),
+            "Is this a good investment?",
+            provider=SilentProvider(),
+            settings=settings,
+        )
+        text = answer.answer or ""
+
+        assert "does not contain should" not in text
+        assert "investment decision" in text
+        assert "earnings" in text
+
+    async def test_advice_is_refused_even_alongside_a_real_concept(
+        self, settings: Settings
+    ) -> None:
+        answer = await answer_question(
+            analyzed_document(),
+            "Given inventory of 350,000, should I invest?",
+            provider=SilentProvider(),
+            settings=settings,
+        )
+        assert answer.status is AnswerStatus.REFUSED
+        assert answer.model is None
+
+    async def test_a_question_about_held_investments_still_reaches_the_model(
+        self, settings: Settings
+    ) -> None:
+        """The refusal keys on asking for a recommendation, not on "invest"."""
+        provider = ScriptedProvider(_reply("Long-term investments are not held."))
+        answer = await answer_question(
+            analyzed_document(),
+            "How much is held in long-term investments?",
+            provider=provider,
+            settings=settings,
+        )
+
+        assert answer.status is AnswerStatus.ANSWERED
+        assert len(provider.prompts) == 1
+
     async def test_an_unsupported_metric_is_refused_with_the_available_list(
         self, settings: Settings
     ) -> None:
