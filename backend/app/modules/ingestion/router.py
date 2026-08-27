@@ -64,10 +64,16 @@ async def upload_document(
     **422** - the file could not be read, or is not a Balance Sheet.
 
     A document that passes Module 1 continues into Module 2, which extracts
-    every line item and maps its terminology onto the canonical vocabulary;
-    ``status`` is then ``extracted``. Labels the local model could not resolve -
-    or that it could not be asked about, because Ollama is not running - are
-    marked ``needs_review`` on the item rather than guessed at.
+    every line item and maps its terminology onto the canonical vocabulary.
+    Labels the local model could not resolve - or that it could not be asked
+    about, because Ollama is not running - are marked ``needs_review`` on the
+    item rather than guessed at.
+
+    Module 3 then computes the Balance Sheet ratios in deterministic Python and
+    ``status`` becomes ``analyzed``. A ratio whose inputs are missing, or whose
+    denominator is zero, is reported ``unavailable`` with a reason; one computed
+    from an incomplete set of line items is reported ``partial``, naming what it
+    left out. No ratio is ever fabricated, and no language model computes one.
 
     **503** - the document needs OCR and this server cannot run it, or
     ``LLM_REQUIRED`` is set and the local model is unreachable.
@@ -98,35 +104,38 @@ async def upload_document(
         start_after=PipelineStage.INGEST,
         context=StageContext(llm=llm, settings=settings),
     )
-    await _store_extraction(db, result.document)
+    await _store_pipeline_result(db, result.document)
     return result.document
 
 
-async def _store_extraction(
+async def _store_pipeline_result(
     db: AsyncDatabase[dict[str, Any]], document: BalanceSheetDocument
 ) -> None:
-    """Persist what Module 2 added, in place.
+    """Persist what Modules 2 and 3 added, in place.
 
     Written as its own step for the same reason Module 1 persists at every
     transition: a crash after a long normalization run should leave the work on
     the document, not only in the response that never arrived.
+
+    One write, not two: the ratios are derived from the extraction, so storing
+    them separately would leave a window in which a reader could see ratios
+    computed from line items the document does not yet show.
     """
     if document.id is None or document.extracted is None:  # pragma: no cover
         return
 
     from app.core.money import encode_for_mongo
 
+    changes: dict[str, Any] = {
+        "extracted": document.extracted.model_dump(mode="python"),
+        "status": document.status.value,
+        "updated_at": utcnow(),
+    }
+    if document.ratios is not None:
+        changes["ratios"] = document.ratios.model_dump(mode="python")
+
     await db[BALANCE_SHEETS].update_one(
-        {"_id": ObjectId(document.id)},
-        {
-            "$set": encode_for_mongo(
-                {
-                    "extracted": document.extracted.model_dump(mode="python"),
-                    "status": document.status.value,
-                    "updated_at": utcnow(),
-                }
-            )
-        },
+        {"_id": ObjectId(document.id)}, {"$set": encode_for_mongo(changes)}
     )
 
 

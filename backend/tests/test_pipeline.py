@@ -28,28 +28,35 @@ class TestStageRegistry:
         assert [info.module for info in STAGES] == [1, 2, 3, 4]
 
     def test_the_built_modules_are_the_ones_that_say_they_are(self) -> None:
-        """Modules 1 and 2 are complete; Modules 3-4 have not been started."""
+        """Modules 1-3 are complete; Module 4 has not been started."""
         states = {info.stage: info.state for info in STAGES}
         assert states[PipelineStage.INGEST] is StageState.IMPLEMENTED
         assert states[PipelineStage.EXTRACT] is StageState.IMPLEMENTED
-        assert states[PipelineStage.RATIOS] is StageState.NOT_IMPLEMENTED
+        assert states[PipelineStage.RATIOS] is StageState.IMPLEMENTED
         assert states[PipelineStage.INSIGHTS] is StageState.NOT_IMPLEMENTED
 
 
 class TestRunPipeline:
     async def test_it_stops_at_the_first_unbuilt_module_and_says_why(self) -> None:
-        """Starting after EXTRACT, the next gap is Module 3."""
-        result = await run_pipeline(_document(), start_after=PipelineStage.EXTRACT)
+        """Starting after RATIOS, the next gap is Module 4."""
+        result = await run_pipeline(_document(), start_after=PipelineStage.RATIOS)
 
-        assert result.stopped_at is PipelineStage.RATIOS
+        assert result.stopped_at is PipelineStage.INSIGHTS
         assert result.completed == []
         assert result.reason is not None
-        assert "Module 3" in result.reason
+        assert "Module 4" in result.reason
         assert "not implemented" in result.reason
 
     async def test_it_does_not_report_success_it_did_not_achieve(self) -> None:
-        result = await run_pipeline(_document(), start_after=PipelineStage.EXTRACT)
-        assert result.document.extracted is None
+        result = await run_pipeline(_document(), start_after=PipelineStage.RATIOS)
+        assert result.document.ratios is None
+
+    async def test_the_ratio_stage_refuses_a_document_module_2_never_touched(
+        self,
+    ) -> None:
+        """Ratios computed from nothing would be seven fabricated numbers."""
+        with pytest.raises(StageNotImplemented, match="extracted Balance Sheet"):
+            await run_pipeline(_document(), start_after=PipelineStage.EXTRACT)
 
     async def test_extraction_without_a_provider_refuses_rather_than_pretending(
         self,
@@ -61,12 +68,6 @@ class TestRunPipeline:
 
 class TestUnimplementedModules:
     """Every unbuilt module raises StageNotImplemented, never a fake result."""
-
-    def test_ratios(self) -> None:
-        from app.modules.ratios.service import compute_ratios
-
-        with pytest.raises(StageNotImplemented, match="Module 3"):
-            compute_ratios(None)  # type: ignore[arg-type]
 
     async def test_insights(self) -> None:
         from app.modules.insights.service import explain
@@ -189,3 +190,104 @@ class TestModuleBoundaries:
                     f"core/{path.name} imports {name} - core must not depend on "
                     "any module"
                 )
+
+
+def _imports_of(package: object) -> dict[str, list[str]]:
+    """Every module name imported by each file of a package.
+
+    Read from the parsed import statements rather than by searching the text,
+    so a docstring *describing* a boundary is not mistaken for a breach of it -
+    which matters here, because Module 3's docstrings talk about the LLM at
+    some length in order to say it is not involved.
+    """
+    import ast
+    from pathlib import Path
+
+    found: dict[str, list[str]] = {}
+    for path in sorted(Path(package.__path__[0]).glob("*.py")):  # type: ignore[attr-defined]
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imported: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.append(node.module)
+        found[path.name] = imported
+    return found
+
+
+class TestModule3IsDeterministic:
+    """The ratio engine's constraints, made structural rather than intended.
+
+    "Financial calculations are never delegated to the LLM" is the project's
+    central rule, and Module 2's own Q&A benchmark showed why: three of four
+    candidate models made arithmetic errors on a Balance Sheet containing
+    fifteen numbers. A rule that important should not rest on everyone
+    remembering it.
+    """
+
+    def test_it_cannot_reach_a_language_model(self) -> None:
+        import app.modules.ratios as ratios
+
+        forbidden = ("app.core.llm", "httpx", "ollama", "app.modules.insights")
+        for filename, imported in _imports_of(ratios).items():
+            for name in imported:
+                assert not name.startswith(forbidden), (
+                    f"ratios/{filename} imports {name} - Module 3 computes in "
+                    "Python and must have no path to a model"
+                )
+
+    def test_it_performs_no_io(self) -> None:
+        """Pure means pure: no database, no file store, no filesystem."""
+        import app.modules.ratios as ratios
+
+        forbidden = ("pymongo", "bson", "app.core.db", "app.core.storage", "pathlib")
+        for filename, imported in _imports_of(ratios).items():
+            for name in imported:
+                assert not name.startswith(forbidden), (
+                    f"ratios/{filename} imports {name} - compute_ratios is pure"
+                )
+
+    def test_compute_ratios_is_synchronous_and_takes_no_dependencies(self) -> None:
+        import inspect
+
+        from app.modules.ratios.service import compute_ratios
+
+        assert not inspect.iscoroutinefunction(compute_ratios)
+        parameters = set(inspect.signature(compute_ratios).parameters)
+        assert parameters == {"sheet", "scale_label"}, (
+            "a db handle, provider or settings object in this signature would "
+            "make the purity constraint a matter of habit rather than of type"
+        )
+
+    def test_module_3_does_not_import_module_4(self) -> None:
+        """The dependency still runs one way: downstream never reaches forward."""
+        import app.modules.ratios as ratios
+
+        for filename, imported in _imports_of(ratios).items():
+            for name in imported:
+                assert not name.startswith("app.modules.insights"), filename
+
+    def test_module_2_does_not_import_module_3(self) -> None:
+        import app.modules.extraction as extraction
+
+        for filename, imported in _imports_of(extraction).items():
+            for name in imported:
+                assert not name.startswith("app.modules.ratios"), filename
+
+    def test_module_3_holds_no_terminology_of_its_own(self) -> None:
+        """Synonyms stay in Module 2. Module 3 names canonical concepts only.
+
+        "Trade Debtors" appearing here would mean the vocabulary had grown a
+        second half-copy - the same trap ``anchors.py`` is guarded against.
+        """
+        from app.modules.extraction import taxonomy
+        from app.modules.ratios import definitions
+
+        canonical = set(taxonomy.labels())
+        for definition in definitions.DEFINITIONS:
+            for spec in (definition.left, definition.right):
+                named = set(spec.include) | set(spec.subtract)
+                if spec.base is not None:
+                    named |= set(spec.base.include) | set(spec.base.subtract)
+                assert named <= canonical, f"{definition.name} names a non-canonical label"

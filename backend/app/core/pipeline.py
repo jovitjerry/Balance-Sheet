@@ -64,8 +64,9 @@ STAGES: tuple[StageInfo, ...] = (
     StageInfo(
         PipelineStage.RATIOS,
         3,
-        "Deterministic Financial Ratio Engine",
-        StageState.NOT_IMPLEMENTED,
+        "Deterministic Financial Ratio Engine (Balance Sheet liquidity and "
+        "leverage ratios, computed in Python from the normalized line items)",
+        StageState.IMPLEMENTED,
     ),
     StageInfo(
         PipelineStage.INSIGHTS,
@@ -158,6 +159,23 @@ async def _run_stage(
             document, provider=context.llm, settings=context.settings
         )
         document.status = DocumentStatus.EXTRACTED
+        return
+
+    if info.stage is PipelineStage.RATIOS:
+        from app.modules.ratios.service import compute_ratios
+
+        if document.extracted is None:
+            raise StageNotImplemented(
+                "The ratio stage needs an extracted Balance Sheet."
+            )
+        # No provider and no settings are passed, deliberately. Module 3 needs
+        # neither, and handing it either would weaken the constraint that keeps
+        # financial calculation out of a language model's reach.
+        document.ratios = compute_ratios(
+            document.extracted,
+            scale_label=document.units.scale_label if document.units else None,
+        )
+        document.status = DocumentStatus.ANALYZED
         return
 
     raise StageNotImplemented(

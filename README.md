@@ -14,15 +14,16 @@ and stores the result in MongoDB. Later modules normalize terminology, compute f
 
 ## Status
 
-This repository currently contains the **project foundation**. Built and working:
+Built and working:
 
 - FastAPI backend with MongoDB Atlas connectivity (PyMongo `AsyncMongoClient`, Stable API v1)
-- The full Module 1 data model (`Decimal`-based, stored as `Decimal128`)
+- The full data model (`Decimal`-based, stored as `Decimal128`)
 - Local file storage behind a replaceable `FileStorage` abstraction
-- **The accounting-equation validator**, with unit tests
+- **Upload → validation → extraction → normalization → ratios** in one request
+- **The accounting-equation validator** and **the ratio engine**, both deterministic Python
 - React + TypeScript frontend with a backend-connectivity check
 
-**Modules 1 and 2 are complete.** Modules 3–4 are not started; their entry points exist with documented signatures and raise `StageNotImplemented`.
+**Modules 1, 2 and 3 are complete.** Module 4 is not started; its entry point exists with a documented signature and raises `StageNotImplemented`.
 
 ## Modules
 
@@ -30,7 +31,7 @@ This repository currently contains the **project foundation**. Built and working
 |---|---|---|---|
 | 1 | `ingestion` | Upload & Validation — parsing, OCR, identification, equation check | **Implemented** |
 | 2 | `extraction` | Full Data Extraction & Normalization | **Implemented** |
-| 3 | `ratios` | Deterministic Financial Ratio Engine | Not implemented |
+| 3 | `ratios` | Deterministic Financial Ratio Engine | **Implemented** |
 | 4 | `insights` | LLM + RAG | Not implemented |
 
 ### What Module 1 does
@@ -74,6 +75,59 @@ contradicts the section it was printed in, and a confidence below the floor.
 **A rejected answer never becomes a guess.** Every one of those lands on
 `needs_review` with the line item completely intact - which Module 3 can see
 and skip. A confidently wrong category is one it could not.
+
+### What Module 3 does
+
+The document continues into the ratio engine and the stored `status` becomes
+`analyzed`. Seven Balance-Sheet-only ratios are computed in **pure, synchronous
+Python**: current, quick, cash, debt-to-equity, debt, equity, and working
+capital. No language model is involved, and none can be - the module imports no
+path to one, and a test reads the imports to prove it.
+
+That constraint is not decoration. Module 2's own Q&A benchmark had three of
+four candidate models make arithmetic errors on a Balance Sheet containing
+fifteen numbers; one summed current assets as 550,000 instead of 850,000 and
+concluded the company could not pay its short-term bills, the exact opposite of
+the truth.
+
+**Provenance is the hard part, not the arithmetic.** A Balance Sheet holds
+figures at three levels - leaf line items, printed subtotals, section grand
+totals - and a ratio that mixes levels is wrong in a way that still looks
+plausible. One rule settles it:
+
+> Prefer what the document printed and Module 1 validated. Derive only what was
+> not printed.
+
+So the three grand totals are Module 1's, read off the page and checked against
+the accounting equation. Current and non-current subtotals have to be summed
+from line items, because Module 2 excludes every printed subtotal and the figure
+does not exist in the data. Each result records which basis each of its sides
+used, so the mixed authority is disclosed rather than hidden.
+
+That same exclusion makes summing safe: `line_items` holds leaves and only
+leaves, and the grand totals live in a different field, so nothing summable
+contains anything else summable. Double counting is structurally impossible -
+and the engine re-applies Module 2's own total-line predicate as a guard anyway,
+so a regression there fails loudly instead of quietly doubling a section.
+
+**Nothing is fabricated.** A ratio whose inputs are absent, or whose denominator
+is zero, is `unavailable` with a machine-readable reason - not infinity, not a
+bare `null`. A ratio computed from an incomplete set of line items is `partial`,
+naming the lines it left out and their total, so a reader can bound the true
+value rather than guess at it. **Nothing is clamped, either:** negative equity
+and negative working capital keep their signs and carry a warning, because
+hiding insolvency would be the worst thing this system could do.
+
+Every figure is walkable back to ink on the page - canonical label → the label
+as printed → the figure as printed → page, row and column. Money is `Decimal`
+throughout; sums are exact, a quotient is rounded once at six decimal places,
+and working capital is never rounded at all.
+
+The formulas, the fields each one draws on, and the limitations of each are
+generated into [`backend/docs/RATIOS.md`](backend/docs/RATIOS.md) from the
+declarations themselves, so the report and the code cannot disagree. Where a
+ratio has competing accounting definitions - the quick ratio does - the choice
+and the rejected alternative are both written down.
 
 ## Stack
 
@@ -164,6 +218,15 @@ Almost nothing needs a live model. The whole normalization ladder — every
 validation rule and every failure mode — is exercised against a stub
 provider, because a real model gives no reliable way to produce a malformed
 answer on demand. What the `llm` tests cover is the transport.
+
+**Module 3 needs nothing at all.** Its acceptance tests run the entire chain —
+parse, identify, select the period, locate the totals, extract every line item,
+normalize the terminology, compute the ratios — against the real Meridian and
+ABC fixtures with the model switched off, using a provider that raises if it is
+ever called. Every label on those documents already spells its canonical
+concept, so the identity dictionary resolves all of them. The expected values
+are hand-derived from the printed figures, and the derived subtotals must land
+on exactly the subtotals the document itself prints and Module 2 discards.
 
 ## Choosing the model
 

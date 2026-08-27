@@ -23,7 +23,7 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 |---|---|---|
 | 1 | `ingestion` | Upload & Validation — file validation, preliminary PDF/Excel parsing, OCR when required, Balance Sheet identification, required-field and accounting-equation validation. **Implemented.** |
 | 2 | `extraction` | Full Data Extraction & Normalization — complete line-item extraction, section/subsection structure, and terminology mapping onto a versioned canonical vocabulary using a local LLM through Ollama. **Implemented.** |
-| 3 | `ratios` | Deterministic Financial Ratio Engine |
+| 3 | `ratios` | Deterministic Financial Ratio Engine — seven Balance-Sheet-only ratios computed in pure Python, with full provenance. **Implemented.** |
 | 4 | `insights` | LLM + RAG explanation and chat |
 
 ### Module boundaries
@@ -100,6 +100,56 @@ orchestrator that may not name what it orchestrates is not one).
   Q&A benchmark does **not** support `qwen3:8b` for explanation work. Keep
   `OLLAMA_MODEL` a setting; do not hard-code a model anywhere.
 
+## Module 3 constraints
+
+- **Seven ratios, Balance Sheet only:** current, quick, cash, debt-to-equity,
+  debt, equity, working capital. Anything needing an Income Statement or Cash
+  Flow Statement is out of scope and `test_definitions.py` enforces it.
+- **Zero dependency on a language model, structurally.** `tests/test_pipeline.py::TestModule3IsDeterministic`
+  reads the imports and fails if anything under `modules/ratios/` reaches
+  `app.core.llm`, `httpx`, `ollama`, `pymongo`, `app.core.db`, `app.core.storage`
+  or `pathlib`. `compute_ratios` is synchronous and takes no dependency
+  parameters. The whole module is testable with nothing installed.
+- **Provenance is the design.** *Prefer what the document printed and Module 1
+  validated; derive only what was not printed.* The three grand totals come from
+  `section.total`; current/non-current subtotals are summed from normalized
+  leaves, because Module 2 discards the printed subtotals. Every result records
+  `numerator_basis` / `denominator_basis`, so the mixed authority is disclosed
+  rather than hidden.
+- **Classification is the canonical category, never the printed heading.**
+  `LineItem.subsection` is evidence, not authority — many sheets print no
+  current/non-current headings at all. The heading may only *narrow* which
+  quantities an **unclassified** line could have belonged to; it never places a
+  figure into a sum.
+- **Double counting is structurally impossible** — `line_items` is leaf-only
+  (Module 2's `is_total_line` excluded every total) and grand totals live in a
+  different field. `aggregation._guard` re-applies Module 2's own predicate so a
+  regression there fails loudly here instead of inflating a section silently.
+- **Duplicate canonical labels are summed and flagged, never de-duplicated.**
+  Two printed lines are two figures with two source references.
+- **Nothing is fabricated.** Missing inputs or a zero denominator →
+  `unavailable` with a machine-readable reason from a closed set. Incomplete
+  inputs → `partial`, naming the excluded lines and their total so a reader can
+  bound the true value. `needs_review` is never guessed at, never zeroed, and
+  never mapped to `other_*`.
+- **Nothing is clamped.** Negative equity, negative working capital and contra
+  balances keep their signs and carry a warning. Hiding insolvency would be the
+  worst thing this system could do.
+- **Precision:** exact sums, one division, one final quantize to 6 dp
+  ROUND_HALF_UP. Working capital is money and is never rounded. Unrounded
+  numerator and denominator are stored so any consumer can re-derive.
+  `RATIO_DECIMAL_PLACES` is a module constant, **not** a setting — a deployment
+  able to change it could change a published result without a version bump.
+- **`RATIO_SPEC_VERSION` is separate from `TAXONOMY_VERSION`** — a formula change
+  and a vocabulary change are different events.
+- **Quick ratio is the SUBTRACTIVE definition** — `(CA − Inventory − Prepaid) / CL`.
+  Chosen so it shares the current ratio's numerator basis and `Quick ≤ Current`
+  always holds. Where a ratio has competing definitions the choice and the
+  rejected alternative are both written into `definitions.py`.
+- **`docs/RATIOS.md` is generated** from `definitions.py` by
+  `python -m scripts.generate_ratio_docs`; `test_docs.py` fails if it drifts.
+  Do not edit it by hand.
+
 ## Implementation constraints
 
 - **Financial calculations must never be delegated to the LLM.** The accounting equation and all ratios are deterministic Python. The LLM explains figures it is handed; it never produces or recomputes them. `compute_ratios` is deliberately synchronous and pure — no DB handle, no LLM client, no I/O.
@@ -108,7 +158,8 @@ orchestrator that may not name what it orchestrates is not one).
 - The client is created and closed in the FastAPI **lifespan** handler and reached through the `get_db()` dependency. Creating it at import time breaks the event loop under pytest.
 - **Original uploaded files go to the `FileStorage` abstraction (`core/storage.py`), never inline in a MongoDB document.**
 - Raw parser output is preserved in `PreliminaryExtraction` with source page metadata, separately from the structured `ExtractedBalanceSheet`. Raw table cells stay **strings** — `"(2,300)"` and `"1,234.5"` must remain recoverable as printed.
-- **Module 2 computes no ratio.** It produces the structured data Module 3 will consume and stops there.
+- **Module 2 computes no ratio.** It produces the structured data Module 3 consumes and stops there.
+- **Module 3 computes no explanation.** It produces figures and the evidence behind them; interpreting them is Module 4's, and Module 4 must select its own model on its own evidence.
 - **Unimplemented pipeline stages raise `StageNotImplemented`** — never a silent success, and never a fabricated result. The same rule governs a missing capability: a scanned page with no OCR engine raises `OcrUnavailable` rather than yielding an empty page, because an empty page would go on to be reported as "not a Balance Sheet" — a verdict the system never actually reached.
 - **Module 1 parsing stack is fixed:** pdfplumber (digital PDF text/tables), pypdfium2 (rasterisation), Tesseract via pytesseract behind the `OcrEngine` protocol, openpyxl (`.xlsx` only — `.xls` is out of scope). PyMuPDF was rejected on AGPL-3.0 licensing.
 - **Word positions are kept for every PDF page, digital and scanned alike** (`SourcePage.words`). A Balance Sheet's figure sits far right of its label, and on a comparative sheet the *column* is what identifies the reporting period — that lives only in the geometry. Flat reading order loses it.

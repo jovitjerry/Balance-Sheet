@@ -238,19 +238,31 @@ class TestThroughThePipeline:
         )
 
         assert PipelineStage.EXTRACT in result.completed
-        assert result.document.status is DocumentStatus.EXTRACTED
         assert result.document.extracted.assets.line_items
 
-    async def test_it_then_stops_at_module_3(self, settings: Settings) -> None:
-        """Module 2 produces what Module 3 will need. It computes no ratio."""
+    async def test_module_2_itself_computes_no_ratio(self, settings: Settings) -> None:
+        """The boundary: Module 2 produces what Module 3 needs and stops there."""
+        document = await validated_document(simple_balance_sheet_pdf(), settings)
+
+        extracted = await extract(document, provider=OfflineProvider(), settings=settings)
+
+        assert extracted.assets.line_items
+        assert document.ratios is None
+        assert not hasattr(extracted, "ratios")
+
+    async def test_it_then_stops_at_module_4(self, settings: Settings) -> None:
+        """Modules 2 and 3 both run; Module 4 is the next real gap."""
         document = await validated_document(simple_balance_sheet_pdf(), settings)
 
         result = await run_pipeline(
             document, context=StageContext(llm=OfflineProvider(), settings=settings)
         )
 
-        assert result.stopped_at is PipelineStage.RATIOS
-        assert "Module 3" in result.reason
+        assert result.completed == [PipelineStage.EXTRACT, PipelineStage.RATIOS]
+        assert result.document.status is DocumentStatus.ANALYZED
+        assert result.document.ratios is not None
+        assert result.stopped_at is PipelineStage.INSIGHTS
+        assert "Module 4" in result.reason
 
     async def test_a_stage_with_no_provider_refuses(self, settings: Settings) -> None:
         document = await validated_document(simple_balance_sheet_pdf(), settings)

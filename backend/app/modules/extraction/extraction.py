@@ -130,7 +130,7 @@ def extract_line_items(
                 # it in one would be an invention.
                 continue
 
-            if _is_total_line(label):
+            if is_total_line(label):
                 continue
 
             item = _line_item(line, segment, context, column, column_x)
@@ -206,7 +206,7 @@ class _Headings:
         return same_units[0][2] if same_units else None
 
 
-def _is_total_line(label: str) -> bool:
+def is_total_line(label: str) -> bool:
     """Whether this label announces a total rather than a line item.
 
     Module 1 locates the three grand totals by name; the subtotals between them
@@ -214,6 +214,13 @@ def _is_total_line(label: str) -> bool:
     nothing else, so leaving them out is Module 2's job. Including them would
     double a section and make the reconciliation against Module 1's total
     meaningless.
+
+    Public because Module 3 re-applies it as a guard. Every figure Module 3 sums
+    came through the exclusion above, so a total reaching an aggregate would
+    mean this test had regressed - and Module 3 would inflate a section
+    silently. It asserts rather than trusts, using this function rather than a
+    second copy of the rule, because two copies could disagree and only one of
+    them would be the one that ran here.
     """
     words = normalise(label).split()
     if not words:
@@ -281,4 +288,4 @@ def _unreadable_figure(line: DocumentLine, segment: LabelSegment) -> Cell | None
     return None  # pragma: no cover - the label always comes from this line
 
 
-__all__ = ["ExtractedLine", "extract_line_items"]
+__all__ = ["ExtractedLine", "extract_line_items", "is_total_line"]

@@ -35,6 +35,8 @@ class DocumentStatus(str, Enum):
     VALIDATED = "validated"
     # Module 2 has extracted the full line items and normalized their labels.
     EXTRACTED = "extracted"
+    # Module 3 has computed the ratios. Module 4 will name its own state.
+    ANALYZED = "analyzed"
     REJECTED = "rejected"
     FAILED = "failed"
 
@@ -320,6 +322,171 @@ class ExtractedBalanceSheet(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Module 3 results - the ratio shapes
+#
+# The result shape lives here, in ``core``, for the same reason
+# ``ExtractedBalanceSheet`` does: it is the contract Module 4 will read. The
+# *formulas* stay in ``modules/ratios``, which ``core`` may not import.
+# --------------------------------------------------------------------------
+
+
+class RatioStatus(str, Enum):
+    """Whether a ratio was computed, and how completely.
+
+    ``PARTIAL`` is the honest middle: the figure is real, but a line that
+    should have contributed was left out because nobody could classify it.
+    Reporting that as ``OK`` would hand a reader an understated ratio with no
+    hint that it is understated.
+    """
+
+    OK = "ok"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class RatioUnit(str, Enum):
+    """What kind of number a result is.
+
+    Working capital is money and inherits the sheet's printed scale; the other
+    six are dimensionless, so scale cancels out of them entirely.
+    """
+
+    RATIO = "ratio"
+    CURRENCY = "currency"
+
+
+class RatioBasis(str, Enum):
+    """Which level of the document a figure was taken from.
+
+    Recorded per side of every ratio because Module 3 mixes levels
+    deliberately: grand totals are Module 1's printed, equation-checked
+    figures, while current/non-current subtotals have to be summed from line
+    items because Module 2 discarded the printed subtotals. A reader should not
+    have to know that to interpret the number.
+    """
+
+    SECTION_TOTAL = "section_total"
+    DERIVED_SUM = "derived_sum"
+    COMPOSITE = "composite"
+
+
+class RatioInput(BaseModel):
+    """One line item that contributed to - or was excluded from - a ratio.
+
+    ``label`` is the document's own wording, so a numerator traces back to ink
+    on the page rather than stopping at a canonical concept.
+    ``canonical_label`` is ``None`` on an excluded input, which is precisely
+    why it was excluded.
+    """
+
+    canonical_label: str | None = None
+    label: str = Field(description="The label as printed in the document.")
+    value: Money
+    source: SourceRef | None = None
+
+
+class RatioResult(BaseModel):
+    """One ratio, its value, and everything needed to argue with it.
+
+    ``numerator`` and ``denominator`` are stored **unrounded** so any consumer
+    can re-derive ``value`` at any precision. ``value`` itself is quantized
+    once, at the end - see ``modules/ratios/service.py``.
+    """
+
+    name: str
+    formula: str = Field(description="e.g. 'Current Assets / Current Liabilities'.")
+    definition: str = Field(description="Prose definition, for the report and Module 4.")
+    unit: RatioUnit
+    status: RatioStatus
+    # Money is reused here for its one real guarantee - Decimal, never float,
+    # and Decimal128 on the way back out of Mongo. `unit` is what says whether
+    # this particular number is currency; a bare ratio is dimensionless.
+    value: Money | None = None
+    # The two operands, left and right. For the six quotients they are the
+    # numerator and the denominator; for working capital, which is a
+    # difference, they are the minuend and the subtrahend. Both are populated
+    # either way - naming the second one "denominator" costs a little accuracy
+    # in one case and buys full traceability of the subtracted side.
+    numerator: Money | None = None
+    denominator: Money | None = None
+    numerator_basis: RatioBasis | None = None
+    denominator_basis: RatioBasis | None = None
+    numerator_inputs: list[RatioInput] = Field(default_factory=list)
+    denominator_inputs: list[RatioInput] = Field(default_factory=list)
+    excluded: list[RatioInput] = Field(
+        default_factory=list,
+        description="Lines that would have contributed had they been classified.",
+    )
+    excluded_value: Money | None = Field(
+        default=None,
+        description="Sum of the excluded figures. The reported value and the "
+        "value with this added bound the true one.",
+    )
+    reason: str | None = Field(
+        default=None, description="Machine-readable, from a closed set. Why there is no value."
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RatioDiagnostics(BaseModel):
+    """What a reviewer needs in order to distrust a ratio intelligently.
+
+    None of this changes a computed figure. It exists because the failure this
+    module cannot detect - a line confidently mapped to the wrong category -
+    leaves no trace in the ratios themselves, only in these.
+    """
+
+    duplicate_canonical_labels: dict[str, int] = Field(
+        default_factory=dict,
+        description="Canonical labels claimed by more than one line, and by how "
+        "many. Summed, never de-duplicated: two printed lines are two figures.",
+    )
+    reconciliation_difference: dict[str, Money] = Field(
+        default_factory=dict,
+        description="Per section, Module 2's total-minus-line-items difference. "
+        "How far the derived level and the printed level disagree.",
+    )
+    normalization_summary: dict[str, int] = Field(
+        default_factory=dict, description="Line-item counts by NormalizationStatus."
+    )
+    unclassified: list[RatioInput] = Field(
+        default_factory=list,
+        description="Every line carrying a figure that no ratio could use.",
+    )
+
+
+class RatioSet(BaseModel):
+    """Every ratio computed for one reporting period.
+
+    ``spec_version`` is deliberately separate from ``taxonomy_version``: a
+    formula change and a vocabulary change are different events, and a stored
+    result has to say which of the two moved.
+    """
+
+    ratios: list[RatioResult] = Field(default_factory=list)
+    spec_version: str = Field(description="Which set of formulas produced this.")
+    taxonomy_version: str | None = Field(
+        default=None, description="Copied from the sheet that was analysed."
+    )
+    currency: str | None = None
+    scale_label: str | None = Field(
+        default=None,
+        description="e.g. 'in thousands'. Recorded, NOT applied - as in Modules 1 and 2. "
+        "Ratios are dimensionless; working capital carries this scale.",
+    )
+    diagnostics: RatioDiagnostics = Field(default_factory=RatioDiagnostics)
+    warnings: list[str] = Field(default_factory=list)
+    computed_at: datetime = Field(default_factory=utcnow)
+
+    def get(self, name: str) -> RatioResult | None:
+        """The result named ``name``, or ``None`` if this set has no such ratio."""
+        for result in self.ratios:
+            if result.name == name:
+                return result
+        return None
+
+
+# --------------------------------------------------------------------------
 # Module 1 evidence - why the system decided what it decided
 # --------------------------------------------------------------------------
 
@@ -453,6 +620,7 @@ class BalanceSheetDocument(BaseModel):
     units: UnitHint | None = None
 
     extracted: ExtractedBalanceSheet | None = None
+    ratios: RatioSet | None = None
     equation_check: EquationCheck | None = None
     validation: ValidationSummary | None = None
     rejection: Rejection | None = None
@@ -502,6 +670,13 @@ __all__ = [
     "PeriodCandidate",
     "PeriodSelection",
     "PreliminaryExtraction",
+    "RatioBasis",
+    "RatioDiagnostics",
+    "RatioInput",
+    "RatioResult",
+    "RatioSet",
+    "RatioStatus",
+    "RatioUnit",
     "RawTable",
     "Rejection",
     "RejectionReason",

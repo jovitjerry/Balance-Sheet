@@ -26,7 +26,7 @@ class TestPipelineEndpoint:
         stages = {stage["stage"]: stage for stage in response.json()["stages"]}
         assert stages["ingest"]["state"] == "implemented"
         assert stages["extract"]["state"] == "implemented"
-        assert stages["ratios"]["state"] == "not_implemented"
+        assert stages["ratios"]["state"] == "implemented"
         assert stages["insights"]["state"] == "not_implemented"
 
 

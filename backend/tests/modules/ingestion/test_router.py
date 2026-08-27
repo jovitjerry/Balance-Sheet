@@ -66,10 +66,10 @@ class TestUploadSucceeds:
 
         assert response.status_code == 201
         body = response.json()
-        # A sheet that passes Module 1 continues into Module 2, so the status
-        # it comes to rest at is `extracted`. The Module 1 verdict is still
-        # right here on the document - the equation check below is it.
-        assert body["status"] == "extracted"
+        # A sheet that passes Module 1 continues into Modules 2 and 3, so the
+        # status it comes to rest at is `analyzed`. The Module 1 verdict is
+        # still right here on the document - the equation check below is it.
+        assert body["status"] == "analyzed"
         assert body["equation_check"]["balanced"] is True
         assert body["extracted"]["assets"]["total"] == "150000"
 
@@ -99,7 +99,69 @@ class TestUploadSucceeds:
             ),
         )
         assert response.status_code == 201
-        assert response.json()["status"] == "extracted"
+        assert response.json()["status"] == "analyzed"
+
+    async def test_the_pipeline_continues_into_the_ratio_engine(
+        self, api_client: AsyncClient
+    ) -> None:
+        """Module 3 runs in the same request and its results come back on the body."""
+        response = await api_client.post(
+            UPLOAD, files=upload_files(simple_balance_sheet_pdf())
+        )
+
+        ratios = response.json()["ratios"]
+        assert ratios is not None, "the upload did not continue into Module 3"
+        assert {ratio["name"] for ratio in ratios["ratios"]} == {
+            "current_ratio",
+            "quick_ratio",
+            "cash_ratio",
+            "debt_to_equity",
+            "debt_ratio",
+            "equity_ratio",
+            "working_capital",
+        }
+        assert ratios["spec_version"]
+
+    async def test_a_ratio_carries_its_formula_and_its_inputs(
+        self, api_client: AsyncClient
+    ) -> None:
+        """The response answers "where did this number come from?" on its own."""
+        response = await api_client.post(
+            UPLOAD, files=upload_files(simple_balance_sheet_pdf())
+        )
+
+        by_name = {ratio["name"]: ratio for ratio in response.json()["ratios"]["ratios"]}
+        debt = by_name["debt_ratio"]
+
+        assert debt["formula"] == "Total Liabilities / Total Assets"
+        assert debt["numerator_basis"] == "section_total"
+        assert debt["numerator_inputs"]
+
+    async def test_an_uncomputable_ratio_says_why_instead_of_guessing(
+        self, api_client: AsyncClient
+    ) -> None:
+        """With no model running these labels do not normalize, so the derived
+        subtotals are genuinely unavailable - and say so rather than reporting a
+        number built from nothing."""
+        response = await api_client.post(
+            UPLOAD, files=upload_files(simple_balance_sheet_pdf())
+        )
+
+        by_name = {ratio["name"]: ratio for ratio in response.json()["ratios"]["ratios"]}
+        for ratio in by_name.values():
+            if ratio["status"] == "unavailable":
+                assert ratio["value"] is None
+                assert ratio["reason"]
+
+    async def test_ratio_values_are_serialised_exactly_not_as_floats(
+        self, api_client: AsyncClient
+    ) -> None:
+        response = await api_client.post(
+            UPLOAD, files=upload_files(simple_balance_sheet_pdf())
+        )
+
+        for ratio in response.json()["ratios"]["ratios"]:
+            assert ratio["value"] is None or isinstance(ratio["value"], str)
 
     async def test_a_comparative_sheet_reports_the_period_it_chose(
         self, api_client: AsyncClient
