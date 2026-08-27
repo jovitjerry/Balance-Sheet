@@ -15,6 +15,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import Settings
 from app.core.llm.base import LlmProvider
+from app.core.llm.embeddings import EmbeddingProvider
 from app.core.storage import FileStorage
 from app.modules.ingestion.ocr import OcrEngine
 
@@ -41,6 +42,16 @@ def get_ocr(request: Request) -> OcrEngine:
     return request.app.state.ocr
 
 
+def get_embeddings(request: Request) -> EmbeddingProvider:
+    """The embedding provider. Built once at startup, running or not.
+
+    Separate from :func:`get_llm` because they are separate models: a
+    deployment can have the chat model pulled and the embedding model missing,
+    and the failure should name whichever one is actually absent.
+    """
+    return request.app.state.embeddings
+
+
 def get_llm(request: Request) -> LlmProvider:
     """The local model provider. Built once at startup, running or not.
 
@@ -52,4 +63,11 @@ def get_llm(request: Request) -> LlmProvider:
     return request.app.state.llm
 
 
-__all__ = ["get_db", "get_llm", "get_ocr", "get_settings_dep", "get_storage"]
+__all__ = [
+    "get_db",
+    "get_embeddings",
+    "get_llm",
+    "get_ocr",
+    "get_settings_dep",
+    "get_storage",
+]

@@ -31,6 +31,7 @@ from typing import Any
 
 from app.core.config import Settings, get_settings
 from app.core.llm.base import LlmProvider, LlmUnavailable
+from app.core.preliminary import load_preliminary
 from app.core.schemas import (
     BalanceSheetDocument,
     BalanceSheetSection,
@@ -38,8 +39,8 @@ from app.core.schemas import (
     LineItem,
     Normalization,
     NormalizationStatus,
-    PreliminaryExtraction,
 )
+from app.core.storage import FileStorage
 from app.modules.extraction import taxonomy
 from app.modules.extraction.extraction import ExtractedLine, extract_line_items
 from app.modules.extraction.normalization import Normalizer
@@ -65,6 +66,7 @@ async def extract(
     *,
     provider: LlmProvider,
     settings: Settings | None = None,
+    storage: FileStorage | None = None,
 ) -> ExtractedBalanceSheet:
     """Extract and normalise a full Balance Sheet from Module 1's output.
 
@@ -72,12 +74,16 @@ async def extract(
     the selected period, the section totals it located - and never re-opens the
     original file.
 
+    ``storage`` is needed only for a document whose raw extraction was large
+    enough that Module 1 spilled it to the file store; see
+    :func:`~app.core.preliminary.load_preliminary`.
+
     :raises LlmUnavailable: only when ``LLM_REQUIRED`` is set. By default an
         unreachable model degrades the terminology step to ``needs_review``
         rather than discarding a complete deterministic extraction.
     """
     settings = settings or get_settings()
-    preliminary = document.preliminary
+    preliminary = await load_preliminary(document, storage=storage)
     if preliminary is None:
         raise ValueError("The document has no preliminary extraction to work from.")
 
@@ -204,11 +210,6 @@ def _summary(items: dict[Section, list[LineItem]]) -> dict[str, int]:
             )
             counts[status.value] += 1
     return dict(counts)
-
-
-def preliminary_of(document: BalanceSheetDocument) -> PreliminaryExtraction | None:
-    """The preliminary extraction, wherever Module 1 put it."""
-    return document.preliminary
 
 
 __all__ = ["NEIGHBOUR_WINDOW", "extract"]

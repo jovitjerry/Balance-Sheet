@@ -24,10 +24,18 @@ class TestPipelineEndpoint:
         response = await client.get("/api/v1/pipeline")
         assert response.status_code == 200
         stages = {stage["stage"]: stage for stage in response.json()["stages"]}
-        assert stages["ingest"]["state"] == "implemented"
-        assert stages["extract"]["state"] == "implemented"
-        assert stages["ratios"]["state"] == "implemented"
-        assert stages["insights"]["state"] == "not_implemented"
+        for name in ("ingest", "extract", "ratios", "insights"):
+            assert stages[name]["state"] == "implemented", name
+
+    async def test_it_distinguishes_upload_stages_from_the_question_answerer(
+        self, client: AsyncClient
+    ) -> None:
+        """Module 4 is built but request-driven, and `state` alone cannot say so."""
+        response = await client.get("/api/v1/pipeline")
+        stages = {stage["stage"]: stage for stage in response.json()["stages"]}
+
+        assert stages["ratios"]["trigger"] == "upload"
+        assert stages["insights"]["trigger"] == "on_request"
 
 
 class TestOpenAPI:

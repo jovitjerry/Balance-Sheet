@@ -24,7 +24,7 @@ Each module is a self-contained package under `backend/app/modules/`, exposing o
 | 1 | `ingestion` | Upload & Validation — file validation, preliminary PDF/Excel parsing, OCR when required, Balance Sheet identification, required-field and accounting-equation validation. **Implemented.** |
 | 2 | `extraction` | Full Data Extraction & Normalization — complete line-item extraction, section/subsection structure, and terminology mapping onto a versioned canonical vocabulary using a local LLM through Ollama. **Implemented.** |
 | 3 | `ratios` | Deterministic Financial Ratio Engine — seven Balance-Sheet-only ratios computed in pure Python, with full provenance. **Implemented.** |
-| 4 | `insights` | LLM + RAG explanation and chat |
+| 4 | `insights` | Grounded Q&A — hybrid retrieval (exact structured facts + semantic search of the document's own text) answered by a local model. **Implemented; request-driven, not an upload stage.** |
 
 ### Module boundaries
 
@@ -150,6 +150,69 @@ orchestrator that may not name what it orchestrates is not one).
   `python -m scripts.generate_ratio_docs`; `test_docs.py` fails if it drifts.
   Do not edit it by hand.
 
+## Module 4 constraints
+
+- **Request-driven, not an upload stage.** `StageInfo.automatic=False` — an
+  upload runs Modules 1–3 and stops. Running Module 4 at upload would mean
+  generating an answer to a question nobody asked; marking it not-implemented
+  would be untrue. `/api/v1/pipeline` reports `trigger: on_request`.
+- **Re-parses nothing, normalizes nothing, computes nothing.** Enforced by
+  `tests/test_pipeline.py::TestModuleBoundaries`, which reads the imports: no
+  parser, no OCR, no `extraction.normalization`, and `compute_ratios` must not
+  appear in the source at all.
+- **Retrieval is asymmetric, deliberately.** Structured retrieval is a
+  dictionary lookup on the loaded document — free, exact, and **always runs**.
+  The only decision with a real cost is whether to *also* run a vector query.
+  Text retrieval earns its keep on notes and policies, not on the balance sheet
+  page, which holds ~1,000 characters of the same data Modules 2–3 hold exactly.
+- **Routing is rules, never a model.** Deterministic and reproducible. Its
+  vocabulary is **derived** from the taxonomy (labels *and* descriptions, a word
+  counting only if it is unique to one category) and from the ratio names.
+  Module 4 holds no financial synonym list — that is Module 2's.
+- **Out-of-scope spans are stripped before concept matching**, or the "cash" in
+  "operating cash flow" reads as the cash line item.
+- **Chunks come only from `SourcePage.text`.** Tables and word boxes are never
+  re-flattened into prose — that manufactures text the document never printed.
+  Chunks never span a page and record `char_start`/`char_end`, so a citation is
+  checkable rather than asserted.
+- **Page roles come from Module 1's stored evidence**, never re-derived.
+  `supplementary` pages are **retrievable, never analysed** — no figure is ever
+  taken from one.
+- **Citations are a per-request `enum`** in the response schema, so citing an
+  unsupplied source is structurally unreachable — the same trick as Module 2's
+  taxonomy enum. Unresolvable tags are dropped, never shipped.
+- **Every figure in an answer must appear in its context.** Unmatched → retry
+  once naming the figure → refuse. Matching tolerates rounding, percentages,
+  scale words and both digit groupings, because a guard that fires on honest
+  restatement gets switched off. The 550,000 benchmark failure is a regression
+  test.
+- **Conversation history is not evidence.** It is shown so "is that good?" can
+  be resolved, and excluded from `Context.groundable` so a wrong figure cannot
+  launder itself into fact by being repeated.
+- **A refusal is a 200**, carrying a machine-readable `reason` from a closed
+  set. Three of the refusal paths never call the model at all.
+- **Ollama unreachable degrades**: the stored figures come back with
+  `answer: null`, `status: degraded`. `LLM_REQUIRED=true` makes it a 503.
+- **The embedding model is separate and separately configurable.**
+  `nomic-embed-text` is a default chosen on **hardware fit, not measurement** —
+  unlike `OLLAMA_MODEL` there is no labelled retrieval set. Do not describe it
+  as "selected". `all-minilm` is the documented fallback.
+- **Module 4 has not settled the generation model either.** `qwen3:8b` is the
+  installed default; `MODEL_SELECTION.md` says the Q&A benchmark does not
+  support it for explanation work.
+- **Retrieval constants are constants.** Chunk size, overlap, `TOP_K`,
+  `NUM_CANDIDATES` and `SIMILARITY_FLOOR` are not settings — part of a
+  reproducible retrieval contract, as `RATIO_DECIMAL_PLACES` is in Module 3.
+- **`$vectorSearch` falls back to exact in-memory scoring** on an exception *or
+  an empty result*: an Atlas index build is asynchronous, and a missing index
+  returns zero rows rather than an error, which would otherwise be
+  indistinguishable from "nothing relevant". At ~15 chunks per document brute
+  force is more accurate anyway.
+- **`document_id` is a required keyword argument** of every retrieval function
+  and a declared filter field on the vector index — isolation is enforced by the
+  engine, not by convention.
+- **`docs/RAG.md`** is the module reference and the report's source.
+
 ## Implementation constraints
 
 - **Financial calculations must never be delegated to the LLM.** The accounting equation and all ratios are deterministic Python. The LLM explains figures it is handed; it never produces or recomputes them. `compute_ratios` is deliberately synchronous and pure — no DB handle, no LLM client, no I/O.
@@ -206,3 +269,8 @@ Normalization requires **Ollama** installed as a program with a model pulled
 (`ollama pull qwen3:8b`). The pip side talks to it over HTTP and cannot supply
 it. Without it the API still runs and still extracts every line item; labels
 that are not already canonical are marked `needs_review`.
+
+Module 4 needs a **second, different** model on the same Ollama
+(`ollama pull nomic-embed-text`) for retrieval embeddings. Without it questions
+are still answered from the structured figures; only the document-text half of
+retrieval is unavailable.

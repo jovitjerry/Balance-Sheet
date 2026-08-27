@@ -8,7 +8,7 @@ Upload a Balance Sheet (PDF or Excel); the system validates it, extracts Assets,
 Total Assets = Total Liabilities + Shareholders' Equity
 ```
 
-and stores the result in MongoDB. Later modules normalize terminology, compute financial ratios in deterministic Python, and explain the results through an LLM with RAG.
+and stores the result in MongoDB. It then normalizes terminology with a local LLM, computes financial ratios in deterministic Python, and answers questions about the document through grounded retrieval-augmented generation.
 
 > **Scope:** Balance Sheet only, single reporting period. Income Statement, Cash Flow, forecasting, benchmarking and anomaly detection are future scope.
 
@@ -20,10 +20,11 @@ Built and working:
 - The full data model (`Decimal`-based, stored as `Decimal128`)
 - Local file storage behind a replaceable `FileStorage` abstraction
 - **Upload → validation → extraction → normalization → ratios** in one request
+- **Ask questions** about a processed document and get grounded, cited answers
 - **The accounting-equation validator** and **the ratio engine**, both deterministic Python
 - React + TypeScript frontend with a backend-connectivity check
 
-**Modules 1, 2 and 3 are complete.** Module 4 is not started; its entry point exists with a documented signature and raises `StageNotImplemented`.
+**All four modules are complete.** Modules 1–3 run on upload; Module 4 answers questions on request.
 
 ## Modules
 
@@ -32,7 +33,7 @@ Built and working:
 | 1 | `ingestion` | Upload & Validation — parsing, OCR, identification, equation check | **Implemented** |
 | 2 | `extraction` | Full Data Extraction & Normalization | **Implemented** |
 | 3 | `ratios` | Deterministic Financial Ratio Engine | **Implemented** |
-| 4 | `insights` | LLM + RAG | Not implemented |
+| 4 | `insights` | Grounded Q&A over a processed document | **Implemented** (request-driven) |
 
 ### What Module 1 does
 
@@ -129,6 +130,64 @@ declarations themselves, so the report and the code cannot disagree. Where a
 ratio has competing accounting definitions - the quick ratio does - the choice
 and the rejected alternative are both written down.
 
+### What Module 4 does
+
+`POST /api/v1/documents/{id}/ask` answers a question about a processed Balance
+Sheet. It retrieves from what Modules 1–3 already stored — it never re-parses a
+file, never OCRs, never normalizes a term, and **never computes a figure**. The
+model explains numbers it is handed.
+
+**The two retrieval paths are not symmetric, and that is the design.** Structured
+retrieval is a dictionary lookup on the already-loaded document: no I/O, no
+model, exact `Decimal`s with page/row/column references. It costs nothing, so it
+always runs, and it answers every financial question. Semantic search is the
+other half — and a measured fact shaped how it is used: a one-page Balance Sheet
+here holds about **1,000 characters** of text, and that text *is* the balance
+sheet. Searching it would retrieve, less precisely, what the structured path
+already answers exactly. So chunks are tagged by page role, and the vector path
+is pointed at the **notes and accounting policies**, where prose actually lives.
+
+**Nothing is fabricated, and three refusals never reach the model.** A question a
+Balance Sheet structurally cannot answer — revenue, profit, cash flow, next
+year — is refused deterministically, without a round trip and with nothing to
+argue with. A metric outside the seven ratios is refused with the list of ones
+that exist. When nothing relevant is retrieved, that is said rather than filled
+in. A refusal is a `200` carrying a machine-readable reason: "a Balance Sheet
+does not report profit" is the correct answer to that question, not an error.
+
+**Every figure in an answer must appear in its context.** This is the guard that
+earns the right to ship a local model. On this project's own Q&A benchmark, three
+of four candidates made arithmetic errors on a Balance Sheet containing fifteen
+numbers — one summed current assets as **550,000** against a true 850,000 and
+concluded the company could not pay its bills, the opposite of the truth, stated
+fluently. So the answer's figures are matched against the ones supplied;
+unmatched means the model calculated or invented, and it is regenerated once
+naming the offending figure, then refused. Matching tolerates rounding,
+percentages, scale words and both digit groupings, because a guard that fires on
+"about 1.3" gets switched off. That exact 550,000 case is a regression test.
+
+**Citations cannot be fabricated.** The response schema's citation list is an
+`enum` built per request from the tags actually in the context, which Ollama
+compiles into a decoding grammar — so citing a source that was not supplied is
+structurally unreachable, the same technique that makes an invented canonical
+label impossible in Module 2.
+
+Document text is treated as **untrusted input**: it is fenced, labelled as data,
+stripped of control characters, and prevented from closing its own block. The
+real protection is structural, though — the reply is four JSON fields, there are
+no tools to invoke, and every figure is checked afterwards.
+
+Retrieval is scoped by `document_id`, which is a required argument of every
+retrieval function *and* a declared filter field on the vector index, so one
+document's text can never surface in another's answer.
+
+Embeddings and chunks live in **MongoDB Atlas** — no separate vector database.
+At a working average of 15 chunks per document, 100 documents use about **6% of
+the free tier's 512 MB**. Indexing is lazy: an upload is unchanged, and a
+document is embedded the first time somebody asks about it.
+
+Full reference: [`backend/docs/RAG.md`](backend/docs/RAG.md).
+
 ## Stack
 
 React + Vite + TypeScript · Python + FastAPI · MongoDB Atlas · pytest / Vitest
@@ -154,6 +213,14 @@ documents — the **Tesseract system binary**.
 > every line item, figure and source reference; labels that are not already
 > the canonical wording are recorded as `needs_review` rather than guessed
 > at. Set `LLM_REQUIRED=true` to refuse instead of degrading.
+
+> **Module 4 needs a second, different model** on the same Ollama, for
+> retrieval embeddings: `ollama pull nomic-embed-text` (274 MB). Without it
+> questions are still answered from the structured figures Modules 1–3
+> computed; only the document-text half of retrieval is unavailable. It is a
+> separate setting (`EMBEDDING_MODEL`) because embedding and generation are
+> different jobs, and choosing a chat model must not silently choose a
+> retriever too.
 
 Only `.pdf` and `.xlsx` are accepted. The legacy binary `.xls` format is out of scope.
 
@@ -197,6 +264,7 @@ The suite splits three ways by what a test needs from outside the process:
 | **integration** | a reachable MongoDB cluster | using the `test_db` fixture |
 | **ocr** | the Tesseract system binary | using the `ocr_engine` fixture |
 | **llm** | Ollama running with the model pulled | using the `ollama_provider` fixture |
+| **embeddings** | the *embedding* model pulled — a different model | using the `embedding_provider` fixture |
 | **benchmark** | Ollama and the candidate models | an explicit `@pytest.mark.benchmark` |
 
 Markers are applied automatically from fixture usage, so there is no decorator to forget. Integration tests run against a separate `<MONGODB_DB>_test` database which is dropped afterwards — a test run never touches real data.
@@ -205,10 +273,11 @@ Markers are applied automatically from fixture usage, so there is no decorator t
 cd backend; .\.venv\Scripts\Activate.ps1
 
 pytest                                              # everything; unavailable dependencies skip
-pytest -m "not integration and not ocr and not llm" # pure unit tests — nothing external
+pytest -m "not integration and not ocr and not llm and not embeddings"  # pure unit — nothing external
 pytest -m integration --require-mongo               # integration only — unreachable Atlas FAILS
 pytest -m ocr --require-ocr                         # OCR only — missing Tesseract FAILS
 pytest -m "llm and not benchmark" --require-ollama  # the live Ollama round trip
+pytest -m embeddings --require-embeddings           # the live embedding round trip
 pytest -m benchmark --require-ollama                # the model comparison — slow, opt-in
 ```
 

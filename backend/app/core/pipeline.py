@@ -38,10 +38,24 @@ class StageInfo:
     module: int
     description: str
     state: StageState
+    automatic: bool = True
+    """Whether an upload runs this stage.
+
+    Module 4 is built, but it is **request-driven**: it answers a question
+    somebody asks, so there is nothing for it to do when a document arrives.
+    Marking it ``NOT_IMPLEMENTED`` would be untrue, and running it at upload
+    would mean generating an answer to a question nobody asked - at the cost of
+    a model call on every upload. This flag is how the registry says "built,
+    but not part of the upload pipeline" instead of having to lie either way.
+    """
 
     @property
     def implemented(self) -> bool:
         return self.state is not StageState.NOT_IMPLEMENTED
+
+    @property
+    def trigger(self) -> str:
+        return "upload" if self.automatic else "on_request"
 
 
 STAGES: tuple[StageInfo, ...] = (
@@ -71,8 +85,12 @@ STAGES: tuple[StageInfo, ...] = (
     StageInfo(
         PipelineStage.INSIGHTS,
         4,
-        "LLM + RAG insight generation",
-        StageState.NOT_IMPLEMENTED,
+        "Grounded Q&A over the processed document (hybrid retrieval: exact "
+        "structured facts plus semantic search of the document's own text, "
+        "answered by a local model that may explain figures but never compute "
+        "them). Request-driven - ask a question rather than wait for an upload",
+        StageState.IMPLEMENTED,
+        automatic=False,
     ),
 )
 
@@ -104,6 +122,9 @@ class StageContext:
 
     llm: Any | None = None
     settings: Any | None = None
+    # Needed only for a document whose raw extraction was large enough that
+    # Module 1 spilled it to the file store rather than inline it.
+    storage: Any | None = None
 
 
 async def run_pipeline(
@@ -124,6 +145,17 @@ async def run_pipeline(
             if info.stage is start_after:
                 reached_start = True
             continue
+
+        if not info.automatic:
+            # Built, but nothing for it to do here. Reported as the point the
+            # automatic run finished rather than as a gap - "stopped" would
+            # read as a failure, and there is none.
+            result.stopped_at = info.stage
+            result.reason = (
+                f"Module {info.module} is request-driven and does not run at "
+                "upload; it answers questions about the stored document."
+            )
+            return result
 
         if not info.implemented:
             result.stopped_at = info.stage
@@ -156,7 +188,10 @@ async def _run_stage(
                 "The extraction stage needs a language-model provider."
             )
         document.extracted = await extract(
-            document, provider=context.llm, settings=context.settings
+            document,
+            provider=context.llm,
+            settings=context.settings,
+            storage=context.storage,
         )
         document.status = DocumentStatus.EXTRACTED
         return

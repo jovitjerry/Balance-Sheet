@@ -487,6 +487,192 @@ class RatioSet(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Module 4 - retrieval, grounding and answers
+#
+# The response shapes live here, in ``core``, for the same reason
+# ``ExtractedBalanceSheet`` and ``RatioSet`` do: they are the contract a caller
+# reads. The retrieval *logic* - chunking rules, routing, prompts - stays in
+# ``modules/insights``, which ``core`` may not import.
+# --------------------------------------------------------------------------
+
+
+class PageRole(str, Enum):
+    """What part a page plays in the uploaded file.
+
+    Derived from the identification evidence Module 1 already stored, never
+    re-derived. The distinction is what lets a policy question be answered from
+    the notes while the analysis stays Balance-Sheet-only: supplementary pages
+    are **retrievable, never analysed**, and no figure is ever taken from one.
+    """
+
+    BALANCE_SHEET = "balance_sheet"
+    SUPPLEMENTARY = "supplementary"
+
+
+class DocumentChunk(BaseModel):
+    """One passage of the document's own text, embedded for retrieval.
+
+    Built only from text Module 1 already extracted - this never re-opens a
+    file. ``char_start``/``char_end`` index into ``SourcePage.text``, so a
+    citation can be checked against the stored page rather than taken on trust.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = Field(default=None, alias="_id")
+    document_id: str = Field(description="Mandatory retrieval filter. Never optional.")
+    page_index: int = Field(ge=0)
+    sheet_name: str | None = None
+    page_role: PageRole
+    chunk_index: int = Field(ge=0, description="Position within the page.")
+    char_start: int = Field(ge=0)
+    char_end: int = Field(ge=0)
+    text: str
+    embedding: list[float] = Field(default_factory=list)
+    embedding_model: str
+    embedding_dim: int = Field(gt=0)
+    chunk_spec_version: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class ChunkIndexState(BaseModel):
+    """What the stored chunks for a document were built from.
+
+    Kept so re-indexing is decided by comparison rather than by a timestamp
+    nobody can interpret: a chunking change, a different embedding model or a
+    changed dimension all invalidate the vectors, and each is visible here.
+    """
+
+    indexed_at: datetime = Field(default_factory=utcnow)
+    embedding_model: str
+    embedding_dim: int = Field(gt=0)
+    chunk_spec_version: str
+    chunk_count: int = Field(ge=0)
+
+    def is_stale(self, *, embedding_model: str, chunk_spec_version: str) -> bool:
+        """Whether these chunks must be rebuilt before they can be trusted.
+
+        Dimension is not compared: it is a property of the model, so a change
+        in one implies a change in the other, and comparing both would only
+        invent a state where they disagree.
+        """
+        return (
+            self.embedding_model != embedding_model
+            or self.chunk_spec_version != chunk_spec_version
+        )
+
+
+class RetrievalRoute(str, Enum):
+    """Which retrieval paths a question was sent down.
+
+    Decided by rules, not by a model - so the same question always routes the
+    same way, and an answer is reproducible.
+    """
+
+    STRUCTURED = "structured"
+    TEXT = "text"
+    BOTH = "both"
+    # Knowably unanswerable from a Balance Sheet - net profit, revenue, cash
+    # flow. Refused deterministically, without calling a model at all.
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+class EvidenceKind(str, Enum):
+    SECTION_TOTAL = "section_total"
+    LINE_ITEM = "line_item"
+    RATIO = "ratio"
+    EQUATION = "equation"
+    COVERAGE = "coverage"
+    # A passage quoted from the document's own text.
+    TEXT = "text"
+
+
+class Evidence(BaseModel):
+    """One grounded piece of support, and where it came from.
+
+    Every kind carries the same shape so an answer's citations and its
+    supporting facts are one vocabulary rather than two near-identical ones.
+    ``id`` is the tag the model cites - ``F1``, ``R1``, ``C1``.
+    """
+
+    id: str = Field(description="Citation tag, unique within one answer.")
+    kind: EvidenceKind
+    label: str = Field(description="What this is, in the document's own words where it has any.")
+    value: str | None = Field(
+        default=None,
+        description="The figure, as a string. Money is never serialised as a "
+        "JSON number - an IEEE double would defeat the point of Decimal.",
+    )
+    detail: str | None = Field(
+        default=None, description="Formula, unavailability reason, or stated limitation."
+    )
+    quote: str | None = Field(default=None, description="The passage, for TEXT evidence.")
+    page_index: int | None = None
+    source: SourceRef | None = None
+    chunk_id: str | None = None
+
+
+class AnswerStatus(str, Enum):
+    """How an answer turned out.
+
+    A refusal is a **successful** outcome, not an error: saying "a Balance
+    Sheet does not report profit" is the correct answer to that question.
+    """
+
+    ANSWERED = "answered"
+    REFUSED = "refused"
+    # No model was reachable, so the facts are returned without prose. The
+    # figures are already computed and stored; withholding them because a
+    # language model is offline would help nobody.
+    DEGRADED = "degraded"
+
+
+class Verification(BaseModel):
+    """Whether every figure in the answer traces back to supplied context.
+
+    The direct answer to a measured failure: on this project's own Q&A
+    benchmark a candidate model summed current assets as 550,000 against a true
+    850,000 and concluded the company could not pay its bills. A figure that is
+    not in the context is not in the answer.
+    """
+
+    passed: bool
+    figures_verified: list[str] = Field(default_factory=list)
+    figures_unverified: list[str] = Field(default_factory=list)
+    retried: bool = Field(
+        default=False, description="Whether generation was retried after a failed check."
+    )
+
+
+class Answer(BaseModel):
+    """A grounded reply to one question about one document."""
+
+    document_id: str
+    question: str
+    answer: str | None = Field(
+        default=None, description="None only when status is DEGRADED."
+    )
+    status: AnswerStatus
+    route: RetrievalRoute
+    supporting_facts: list[Evidence] = Field(
+        default_factory=list,
+        description="The authoritative facts placed in context, cited or not.",
+    )
+    citations: list[Evidence] = Field(
+        default_factory=list,
+        description="What the model actually cited, resolved. A tag that "
+        "resolves to nothing is dropped rather than shipped pointing nowhere.",
+    )
+    verification: Verification
+    reason: str | None = Field(
+        default=None, description="Machine-readable, from a closed set. Why it refused."
+    )
+    model: str | None = Field(default=None, description="None when no model was called.")
+    spec_version: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+# --------------------------------------------------------------------------
 # Module 1 evidence - why the system decided what it decided
 # --------------------------------------------------------------------------
 
@@ -621,6 +807,9 @@ class BalanceSheetDocument(BaseModel):
 
     extracted: ExtractedBalanceSheet | None = None
     ratios: RatioSet | None = None
+    # Module 4 indexes lazily, on the first question asked about a document -
+    # so most uploads never carry this, and an upload never waits for it.
+    chunk_index: ChunkIndexState | None = None
     equation_check: EquationCheck | None = None
     validation: ValidationSummary | None = None
     rejection: Rejection | None = None
@@ -653,10 +842,19 @@ Sha256 = Annotated[str, Field(min_length=64, max_length=64)]
 
 
 __all__ = [
+    "Answer",
+    "AnswerStatus",
     "BalanceSheetDocument",
     "BalanceSheetSection",
+    "ChunkIndexState",
+    "DocumentChunk",
     "DocumentStatus",
     "EquationCheck",
+    "Evidence",
+    "EvidenceKind",
+    "PageRole",
+    "RetrievalRoute",
+    "Verification",
     "ExtractedBalanceSheet",
     "IdentificationEvidence",
     "IdentificationSignal",

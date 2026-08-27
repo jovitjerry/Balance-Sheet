@@ -27,29 +27,47 @@ class TestStageRegistry:
     def test_stages_run_in_module_order(self) -> None:
         assert [info.module for info in STAGES] == [1, 2, 3, 4]
 
-    def test_the_built_modules_are_the_ones_that_say_they_are(self) -> None:
-        """Modules 1-3 are complete; Module 4 has not been started."""
+    def test_every_module_is_built(self) -> None:
         states = {info.stage: info.state for info in STAGES}
-        assert states[PipelineStage.INGEST] is StageState.IMPLEMENTED
-        assert states[PipelineStage.EXTRACT] is StageState.IMPLEMENTED
-        assert states[PipelineStage.RATIOS] is StageState.IMPLEMENTED
-        assert states[PipelineStage.INSIGHTS] is StageState.NOT_IMPLEMENTED
+        assert set(states.values()) == {StageState.IMPLEMENTED}
+
+    def test_module_4_is_built_but_not_part_of_the_upload_pipeline(self) -> None:
+        """It answers questions, so there is nothing for it to do at upload.
+
+        Reporting it "not implemented" would be untrue, and running it on
+        upload would mean generating an answer to a question nobody asked.
+        """
+        automatic = {info.stage: info.automatic for info in STAGES}
+        assert automatic[PipelineStage.INGEST] is True
+        assert automatic[PipelineStage.EXTRACT] is True
+        assert automatic[PipelineStage.RATIOS] is True
+        assert automatic[PipelineStage.INSIGHTS] is False
+
+    def test_the_trigger_is_reportable(self) -> None:
+        triggers = {info.stage: info.trigger for info in STAGES}
+        assert triggers[PipelineStage.RATIOS] == "upload"
+        assert triggers[PipelineStage.INSIGHTS] == "on_request"
 
 
 class TestRunPipeline:
-    async def test_it_stops_at_the_first_unbuilt_module_and_says_why(self) -> None:
-        """Starting after RATIOS, the next gap is Module 4."""
+    async def test_an_upload_run_ends_after_the_ratio_stage(self) -> None:
+        """Not a failure - the automatic part of the pipeline is simply done."""
         result = await run_pipeline(_document(), start_after=PipelineStage.RATIOS)
 
         assert result.stopped_at is PipelineStage.INSIGHTS
         assert result.completed == []
         assert result.reason is not None
         assert "Module 4" in result.reason
-        assert "not implemented" in result.reason
+        assert "request-driven" in result.reason
 
     async def test_it_does_not_report_success_it_did_not_achieve(self) -> None:
         result = await run_pipeline(_document(), start_after=PipelineStage.RATIOS)
         assert result.document.ratios is None
+
+    async def test_no_answer_is_generated_at_upload(self) -> None:
+        """An upload must not cost a model call for a question nobody asked."""
+        result = await run_pipeline(_document(), start_after=PipelineStage.RATIOS)
+        assert PipelineStage.INSIGHTS not in result.completed
 
     async def test_the_ratio_stage_refuses_a_document_module_2_never_touched(
         self,
@@ -66,14 +84,32 @@ class TestRunPipeline:
             await run_pipeline(_document())
 
 
-class TestUnimplementedModules:
-    """Every unbuilt module raises StageNotImplemented, never a fake result."""
+class TestNoModuleFabricatesAResult:
+    """Where a module cannot do its job, it says so rather than inventing one."""
 
-    async def test_insights(self) -> None:
+    async def test_answering_without_a_provider_refuses(self) -> None:
+        """``explain`` cannot name the model that produced an answer, so it will
+        not produce one. ``answer_question`` takes the provider explicitly."""
         from app.modules.insights.service import explain
 
-        with pytest.raises(StageNotImplemented, match="Module 4"):
+        with pytest.raises(StageNotImplemented, match="answer_question"):
             await explain(_document())
+
+    async def test_answering_an_unprocessed_document_refuses(self) -> None:
+        from app.modules.insights.service import answer_question
+
+        class Unused:
+            name = "unused"
+            model = "none"
+
+            def available(self) -> bool:  # pragma: no cover
+                return True
+
+            async def complete_json(self, **kwargs):  # pragma: no cover
+                raise AssertionError("must not reach a model")
+
+        with pytest.raises(StageNotImplemented, match="not been extracted"):
+            await answer_question(_document(), "Anything?", provider=Unused())
 
 
 class TestModuleBoundaries:
@@ -274,6 +310,73 @@ class TestModule3IsDeterministic:
         for filename, imported in _imports_of(extraction).items():
             for name in imported:
                 assert not name.startswith("app.modules.ratios"), filename
+
+    def test_module_4_re_parses_nothing(self) -> None:
+        """It answers from what Modules 1-3 stored, never from the file again.
+
+        The whole premise of the retrieval design is that the document has
+        already been read. An import of a parser here would mean a question
+        could re-open a PDF - slow, and a second reading that could disagree
+        with the one every stored figure came from.
+        """
+        import app.modules.insights as insights
+
+        forbidden = (
+            "pdfplumber",
+            "pypdfium2",
+            "pytesseract",
+            "openpyxl",
+            "PIL",
+            "app.modules.ingestion.parsing",
+            "app.modules.ingestion.ocr",
+        )
+        for filename, imported in _imports_of(insights).items():
+            for name in imported:
+                assert not name.startswith(forbidden), (
+                    f"insights/{filename} imports {name} - Module 4 must not "
+                    "re-parse the document"
+                )
+
+    def test_module_4_normalizes_no_terminology(self) -> None:
+        """Deciding that "Trade Debtors" means trade receivables is Module 2's."""
+        import app.modules.insights as insights
+
+        for filename, imported in _imports_of(insights).items():
+            for name in imported:
+                assert not name.startswith(
+                    ("app.modules.extraction.normalization", "app.modules.extraction.aliases")
+                ), f"insights/{filename} imports {name}"
+
+    def test_module_4_computes_no_ratio(self) -> None:
+        """It reads stored results. Recomputing could disagree with what was stored.
+
+        Read from the source rather than by import, because Module 4 legitimately
+        imports ``definitions`` for the formulas and limitations it quotes - what
+        it must never do is call the engine.
+        """
+        from pathlib import Path
+
+        import app.modules.insights as insights
+
+        for path in sorted(Path(insights.__path__[0]).glob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            assert "compute_ratios" not in source, (
+                f"insights/{path.name} calls compute_ratios - Module 4 reads "
+                "the stored RatioSet"
+            )
+
+    def test_modules_1_to_3_know_nothing_of_module_4(self) -> None:
+        """The dependency runs one way; nothing upstream reaches forward."""
+        import app.modules.extraction as extraction
+        import app.modules.ingestion as ingestion
+        import app.modules.ratios as ratios
+
+        for package in (ingestion, extraction, ratios):
+            for filename, imported in _imports_of(package).items():
+                for name in imported:
+                    assert not name.startswith("app.modules.insights"), (
+                        f"{package.__name__}/{filename} imports {name}"
+                    )
 
     def test_module_3_holds_no_terminology_of_its_own(self) -> None:
         """Synonyms stay in Module 2. Module 3 names canonical concepts only.

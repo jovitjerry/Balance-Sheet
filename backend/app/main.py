@@ -12,11 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.db import create_client, ensure_indexes, get_database, ping
 from app.core.errors import register_exception_handlers
+from app.core.llm.embeddings import build_embedding_provider
 from app.core.llm.ollama import build_llm_provider
 from app.core.pipeline import STAGES
 from app.core.storage import build_storage
 from app.modules.ingestion.ocr import build_ocr_engine
 from app.modules.ingestion.router import router as ingestion_router
+from app.modules.insights.router import router as insights_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,6 +45,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         model=settings.ollama_model,
         timeout_s=settings.ollama_timeout_s,
         num_ctx=settings.ollama_num_ctx,
+    )
+    # A separate model from the one above, on the same Ollama host. Built here
+    # whether or not it is pulled, like every other optional capability.
+    app.state.embeddings = build_embedding_provider(
+        host=settings.ollama_host,
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dim,
+        timeout_s=settings.embedding_timeout_s,
     )
     if settings.ocr_enabled and not app.state.ocr.available():
         # A warning, not a failure. Documents with a usable text layer are
@@ -125,10 +135,13 @@ async def health() -> dict[str, str]:
 
 @api.get("/pipeline", tags=["meta"])
 async def pipeline_status() -> dict[str, object]:
-    """Report which modules are actually implemented.
+    """Report which modules are implemented, and what triggers each.
 
     Exists so "not built yet" is visible from the outside rather than being
-    something a caller has to infer from a failure.
+    something a caller has to infer from a failure. ``trigger`` distinguishes
+    the stages an upload runs from Module 4, which is built but answers
+    questions on request - a distinction ``state`` alone cannot make without
+    misreporting one or the other.
     """
     return {
         "stages": [
@@ -137,6 +150,7 @@ async def pipeline_status() -> dict[str, object]:
                 "module": info.module,
                 "description": info.description,
                 "state": info.state.value,
+                "trigger": info.trigger,
             }
             for info in STAGES
         ]
@@ -144,6 +158,7 @@ async def pipeline_status() -> dict[str, object]:
 
 
 api.include_router(ingestion_router)
+api.include_router(insights_router)
 app.include_router(api)
 
 

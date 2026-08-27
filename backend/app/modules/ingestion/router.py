@@ -102,7 +102,7 @@ async def upload_document(
     result = await run_pipeline(
         document,
         start_after=PipelineStage.INGEST,
-        context=StageContext(llm=llm, settings=settings),
+        context=StageContext(llm=llm, settings=settings, storage=storage),
     )
     await _store_pipeline_result(db, result.document)
     return result.document

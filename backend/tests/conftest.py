@@ -19,11 +19,18 @@ exactly the tests that use the ``ollama_provider`` fixture, and are marked
 exercised end to end against a stub provider, so what remains here is the
 transport itself.
 
+**Embedding tests** need the configured *embedding* model pulled, which is a
+different model on the same server - a machine can easily have one and not the
+other. They use the ``embedding_provider`` fixture and are marked
+``embeddings``. Module 4's retrieval ranking is unit-tested without it: Ollama
+returns unit vectors, so similarity is a dot product over hand-written vectors.
+
     pytest                              # everything; integration and ocr skip if unavailable
     pytest -m "not integration and not ocr and not llm"   # pure unit; nothing external
     pytest -m integration --require-mongo    # integration only; unreachable Atlas FAILS
     pytest -m ocr --require-ocr              # OCR only; missing Tesseract FAILS
     pytest -m "llm and not benchmark" --require-ollama   # transport check only
+    pytest -m embeddings --require-embeddings   # embedding round trip only
     pytest -m benchmark --require-ollama     # the model comparison; slow, opt-in
 
 ``--require-mongo`` and ``--require-ocr`` exist because a skip is the right
@@ -35,6 +42,7 @@ those skips into hard failures.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -52,6 +60,7 @@ from app.modules.ingestion.ocr import OcrEngine, TesseractOcrEngine
 REQUIRE_MONGO = "--require-mongo"
 REQUIRE_OCR = "--require-ocr"
 REQUIRE_OLLAMA = "--require-ollama"
+REQUIRE_EMBEDDINGS = "--require-embeddings"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -87,6 +96,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+    parser.addoption(
+        REQUIRE_EMBEDDINGS,
+        action="store_true",
+        default=False,
+        help=(
+            "Fail embedding tests when the embedding model is unreachable or "
+            "not pulled, instead of skipping them."
+        ),
+    )
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
@@ -103,6 +123,8 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.ocr)
         if "ollama_provider" in fixtures:
             item.add_marker(pytest.mark.llm)
+        if "embedding_provider" in fixtures:
+            item.add_marker(pytest.mark.embeddings)
 
 
 @pytest.fixture
@@ -176,6 +198,49 @@ def ollama_provider(request: pytest.FixtureRequest):
     pytest.skip(message)
 
 
+@pytest.fixture
+def embedding_provider(request: pytest.FixtureRequest):
+    """A real embedding provider, or a clear stop if the model is not pulled.
+
+    A separate fixture from ``ollama_provider`` because they are separate
+    models: a machine commonly has the chat model and not the embedding one,
+    and the message should name whichever is actually missing.
+    """
+    from app.core.llm.embeddings import build_embedding_provider
+
+    config = get_settings()
+    provider = build_embedding_provider(
+        host=config.ollama_host,
+        model=config.embedding_model,
+        dimensions=config.embedding_dim,
+        timeout_s=config.embedding_timeout_s,
+    )
+
+    if not provider.available():
+        message = (
+            f"Ollama is not reachable at {config.ollama_host}. Install it from "
+            "https://ollama.com and start it."
+        )
+    else:
+        from app.core.llm.ollama import build_llm_provider
+
+        installed = build_llm_provider(
+            host=config.ollama_host, model=config.embedding_model
+        ).installed_models()
+        names = {name.split(":")[0] for name in (installed or [])}
+        if config.embedding_model.split(":")[0] in names:
+            return provider
+        message = (
+            f"Ollama is running but the embedding model "
+            f"{config.embedding_model!r} is not pulled. Run "
+            f"'ollama pull {config.embedding_model}'."
+        )
+
+    if request.config.getoption(REQUIRE_EMBEDDINGS):
+        pytest.fail(f"{message} ({REQUIRE_EMBEDDINGS} was passed)", pytrace=False)
+    pytest.skip(message)
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     """An HTTP client wired to the app, with the real lifespan running.
@@ -236,5 +301,18 @@ async def test_db(
     try:
         yield mongo.get_database(name, codec_options=CODEC_OPTIONS)
     finally:
-        await mongo.drop_database(name)
-        await mongo.close()
+        # The client is closed even when the drop fails. Previously a failed
+        # drop skipped the close and leaked the connection, so a single
+        # transient Atlas error early in a long run could starve every later
+        # test of connections - which presents as unrelated tests erroring in
+        # teardown rather than as the one thing that actually went wrong.
+        try:
+            await mongo.drop_database(name)
+        except Exception as exc:  # noqa: BLE001 - cleanup, not an assertion
+            # Warn rather than raise: the run's results are already decided,
+            # and turning cleanup trouble into a test error hides them.
+            logging.getLogger(__name__).warning(
+                "Could not drop the test database %r: %s", name, exc
+            )
+        finally:
+            await mongo.close()

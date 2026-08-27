@@ -113,6 +113,27 @@ class Settings(BaseSettings):
     # rescue one that failed validation.
     normalization_confidence_floor: float = Field(default=0.5, ge=0, le=1)
 
+    # ---- Module 4: retrieval embeddings ----
+    # A DIFFERENT model from the one above, and deliberately its own setting.
+    # Embedding and generation are different jobs on different schedules -
+    # embed once per document, generate once per question - and choosing a chat
+    # model must not silently choose a retriever too.
+    #
+    # nomic-embed-text is the starting default, chosen on hardware fit rather
+    # than measurement: qwen3:8b occupies 6,460 MB of an 8 GB card, and at
+    # 274 MB this is the strongest general-purpose embedder that comfortably
+    # sits beside it. Unlike OLLAMA_MODEL this has NOT been benchmarked - there
+    # is no labelled retrieval set yet - so it is a default, not a selection.
+    # all-minilm (384 dim, 46 MB) is the fallback if VRAM becomes binding.
+    embedding_model: str = Field(
+        default="nomic-embed-text",
+        description="The pulled model used to embed text for retrieval (Module 4).",
+    )
+    # Must match the model. A mismatch is caught at embed time with a message
+    # naming both, rather than surfacing later as an opaque index rejection.
+    embedding_dim: int = Field(default=768, gt=0)
+    embedding_timeout_s: float = Field(default=60.0, gt=0)
+
     # ---- File storage ----
     storage_backend: str = Field(default="local")
     storage_dir: Path = Field(default=BACKEND_DIR / "var" / "uploads")

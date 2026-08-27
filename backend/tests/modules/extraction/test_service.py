@@ -8,21 +8,25 @@ gives you a reliable way to produce.
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 import pytest
 
 from app.core.config import Settings
-from app.core.errors import StageNotImplemented
+from app.core.errors import StageNotImplemented, StorageError
 from app.core.llm.base import LlmUnavailable
 from app.core.pipeline import PipelineStage, StageContext, run_pipeline
 from app.core.schemas import (
+    BalanceSheetDocument,
     DocumentStatus,
     NormalizationMethod,
     NormalizationStatus,
 )
+from app.core.storage import LocalFileStorage, key_for
 from app.modules.extraction import taxonomy
 from app.modules.extraction.service import extract
+from app.modules.ingestion.service import PRELIMINARY_SUFFIX
 from tests.modules.extraction.fixtures import (
     FixedProvider,
     OfflineProvider,
@@ -268,6 +272,77 @@ class TestThroughThePipeline:
         document = await validated_document(simple_balance_sheet_pdf(), settings)
         with pytest.raises(StageNotImplemented):
             await run_pipeline(document, context=StageContext(settings=settings))
+
+
+class TestAnOffloadedPreliminaryExtraction:
+    """A document whose raw extraction was too large to inline still extracts.
+
+    Module 1 spills the raw payload to file storage when it approaches
+    MongoDB's document cap, leaving only a ``preliminary_ref``. Reading that
+    back was never implemented, so this path failed with "the document has no
+    preliminary extraction to work from" - on a document that had one all
+    along. These tests pin the repair.
+    """
+
+    async def test_it_extracts_from_the_offloaded_payload(
+        self, settings: Settings, storage: LocalFileStorage
+    ) -> None:
+        inline = await validated_document(side_by_side_balance_sheet_pdf(), settings)
+        offloaded = await _offload(inline, storage)
+
+        assert offloaded.preliminary is None  # exactly as it comes back from Mongo
+
+        extracted = await extract(
+            offloaded, provider=OfflineProvider(), settings=settings, storage=storage
+        )
+
+        assert extracted.assets.line_items
+        assert {item.label for item in extracted.assets.line_items} >= {
+            "Cash and cash equivalents",
+            "Inventory",
+        }
+
+    async def test_it_matches_the_inline_result_exactly(
+        self, settings: Settings, storage: LocalFileStorage
+    ) -> None:
+        """Where the payload was stored must not change a single figure."""
+        inline = await validated_document(side_by_side_balance_sheet_pdf(), settings)
+        offloaded = await _offload(inline, storage)
+
+        from_inline = await extract(
+            inline, provider=OfflineProvider(), settings=settings
+        )
+        from_storage = await extract(
+            offloaded, provider=OfflineProvider(), settings=settings, storage=storage
+        )
+
+        assert from_inline.model_dump() == from_storage.model_dump()
+
+    async def test_without_a_file_store_it_says_so_rather_than_reporting_nothing(
+        self, settings: Settings, storage: LocalFileStorage
+    ) -> None:
+        """The failure that made this bug invisible: an empty answer, not an error."""
+        inline = await validated_document(side_by_side_balance_sheet_pdf(), settings)
+        offloaded = await _offload(inline, storage)
+
+        with pytest.raises(StorageError, match="file store"):
+            await extract(offloaded, provider=OfflineProvider(), settings=settings)
+
+
+async def _offload(
+    document: BalanceSheetDocument, storage: LocalFileStorage
+) -> BalanceSheetDocument:
+    """The document as Module 1 leaves it when the payload took the spill path."""
+    assert document.preliminary is not None
+    ref = await storage.save(
+        json.dumps(
+            document.preliminary.model_dump(mode="python", exclude_none=True),
+            default=str,
+        ).encode("utf-8"),
+        key=key_for(document.source.sha256, PRELIMINARY_SUFFIX),
+        content_type="application/json",
+    )
+    return document.model_copy(update={"preliminary": None, "preliminary_ref": ref})
 
 
 class TestIdempotence:
