@@ -1,0 +1,47 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* `auto-fill`, not `auto-fit`.
+   `auto-fit` collapses the tracks a row does not use, so the four liquidity
+   cards came out 251px wide while the three leverage cards stretched to 339px
+   - the same component at two sizes on one page - and left a 0px phantom
+   track in the computed columns. `auto-fill` keeps the empty track, so every
+   ratio card is the same width whatever else is beside it. */
+.grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* Two columns on a wide viewport rather than one narrow one in a wide card -
+   see the note in UploadPage.module.css. */
+.caveat {
+  margin: 0 0 var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  column-gap: var(--space-6);
+}
+
+@media (min-width: 60rem) {
+  .caveat {
+    columns: 2;
+  }
+}
+
+.warnings {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8125rem;
+  color: var(--warn);
+}

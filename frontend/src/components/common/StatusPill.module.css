@@ -1,0 +1,33 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.bad {
+  color: var(--bad);
+}
+
+.neutral {
+  color: var(--muted);
+}
+
+.accent {
+  color: var(--accent);
+}

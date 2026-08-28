@@ -1,0 +1,140 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.card[data-status="partial"] {
+  border-color: var(--warn);
+}
+
+.card[data-status="unavailable"] {
+  background: var(--surface-sunken);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.card[data-status="unavailable"] .value {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.formula {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.bound {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--warn);
+}
+
+.warning {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--warn);
+}
+
+/* Pushed to the bottom of the card. The cards in a row are already equal
+   height, but their contents are not - a longer formula or a warning line
+   pushed this disclosure down, so the row of "How this was computed" links
+   sat at four different heights. */
+.details {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.definition {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.operands {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+}
+
+.operands dt {
+  color: var(--muted);
+}
+
+.operands dd {
+  margin: 0;
+}
+
+.basis {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.inputs {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.input {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inputLabel {
+  overflow-wrap: anywhere;
+}
+
+.excludedHeading {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--warn);
+}

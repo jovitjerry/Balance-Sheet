@@ -1,0 +1,238 @@
+/* One stylesheet for the ask cluster: the thread, its input and its cards are
+   a single visual unit, and splitting them would scatter shared spacing. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.question {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.questionMark {
+  color: var(--muted);
+  font-weight: 600;
+  flex: none;
+}
+
+.questionText {
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.answer[data-status="refused"] {
+  background: var(--surface-sunken);
+}
+
+.answer[data-status="degraded"] {
+  border-color: var(--warn);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.model {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.prose {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.refusalTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.refusalBody,
+.refusalSuggestion {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.degradedNote {
+  margin: 0;
+  color: var(--warn);
+  font-size: 0.9375rem;
+}
+
+/* ------------------------------------------------------------- evidence */
+
+.evidence {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.evidenceSummary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.evidenceList {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.evidenceItem {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+}
+
+.tag {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  text-align: center;
+  align-self: start;
+}
+
+.evidenceLabel {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.evidenceValue {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.evidenceDetail,
+.evidenceSource {
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.quote {
+  grid-column: 2;
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------------------------------- verification */
+
+.verification {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.figures {
+  font-family: var(--mono);
+}
+
+/* --------------------------------------------------------------- input */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.formFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.counter {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.counter[data-over="true"] {
+  color: var(--bad);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.suggestion {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 1rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8125rem;
+}
+
+.suggestion:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 0.9375rem;
+}

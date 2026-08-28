@@ -1,0 +1,90 @@
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-5);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.filename {
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.elapsed {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr;
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+  color: var(--muted);
+}
+
+.stage[data-state="running"],
+.stage[data-state="done"] {
+  color: var(--text);
+}
+
+.marker {
+  width: 1.25rem;
+  text-align: center;
+  line-height: 1.55;
+}
+
+.stage[data-state="done"] .marker {
+  color: var(--ok);
+}
+
+.stage[data-state="running"] .marker {
+  color: var(--accent);
+}
+
+.stageLabel {
+  font-weight: 600;
+}
+
+.stage[data-state="pending"] .stageLabel {
+  font-weight: 400;
+}
+
+.note {
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.disclosure {
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.actions {
+  margin-top: var(--space-4);
+}

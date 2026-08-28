@@ -1,0 +1,99 @@
+.section {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 0 var(--space-3) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th.numeric {
+  text-align: right;
+  padding-right: 0;
+}
+
+.table td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: baseline;
+}
+
+.table td.numeric {
+  text-align: right;
+  padding-right: 0;
+  white-space: nowrap;
+}
+
+.subheading td {
+  padding-top: var(--space-4);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 0;
+}
+
+.label {
+  overflow-wrap: anywhere;
+}
+
+.canonical {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* The printed total: a rule above it, never a fill. */
+.total td {
+  border-top: 2px solid var(--border-strong);
+  border-bottom: 0;
+  padding-top: var(--space-3);
+  font-weight: 600;
+}
+
+.flags {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.raw {
+  font-family: var(--mono);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.reconcile {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-4);
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.count {
+  font-family: var(--mono);
+  color: var(--text);
+  font-weight: 600;
+}

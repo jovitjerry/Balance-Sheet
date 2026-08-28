@@ -1,0 +1,126 @@
+.rejection {
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-5);
+}
+
+.rejectionTitle {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+
+.equation {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.equation dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.equation dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* A single element spanning both grid columns.
+   The rule used to be a `border-top` on the `dt` and the `dd` separately,
+   which the 16px column gap split into two visibly disconnected segments. */
+.equationRule {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
+}
+
+.equationTotal {
+  font-weight: 600;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.missing {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.1rem;
+  color: var(--bad);
+  font-size: 0.875rem;
+}
+
+.signals {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.signal {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.signalKind {
+  color: var(--muted);
+  min-width: 8rem;
+  font-size: 0.8125rem;
+}
+
+.signalText {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.signalWeight {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.scoreValue {
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.candidates {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+}
+
+.details {
+  margin-top: var(--space-3);
+}
+
+.summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--accent);
+  font-weight: 600;
+}

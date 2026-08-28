@@ -1,0 +1,51 @@
+.zone {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--surface);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.zone[data-dragging="true"] {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.headline {
+  margin: 0 0 var(--space-1);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.hint {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.label {
+  display: inline-block;
+}
+
+/* The nested file input is the focusable element, but it is 1px and clipped.
+   Its ring is drawn here instead, on the control a keyboard user can see. */
+.label:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rejection {
+  margin: var(--space-4) 0 0;
+  color: var(--bad);
+  font-size: 0.875rem;
+}
