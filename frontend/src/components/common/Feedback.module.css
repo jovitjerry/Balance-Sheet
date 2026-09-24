@@ -15,8 +15,7 @@
   }
 }
 
-/* A solid border, not dashed: a dashed rectangle reads as a drop target, and
-   on the Ask tab there is nothing to drop. */
+
 .empty {
   padding: var(--space-6) var(--space-4);
   text-align: center;

@@ -1,23 +1,9 @@
-/**
- * Turning an API error into something a reader can act on.
- *
- * The backend's own message is always shown: `core/errors.py` guarantees it
- * carries no stack trace, path, library name or connection string, and
- * `test_router.py::TestResponsesLeakNothing` enforces that. What is added here
- * is the next step, which the backend has no way to know.
- */
-
 import { ApiError } from "../api/client";
-
 export interface ErrorGuidance {
-  /** The backend's own words, or a written fallback. */
   message: string;
-  /** What to do about it. Empty when there is nothing useful to say. */
   guidance: string;
-  /** Whether retrying the same request could plausibly work. */
   retryable: boolean;
 }
-
 const BY_CODE: Record<string, Omit<ErrorGuidance, "message">> = {
   invalid_upload: {
     guidance:
@@ -62,9 +48,6 @@ const BY_CODE: Record<string, Omit<ErrorGuidance, "message">> = {
       "Start the backend with: uvicorn app.main:app --reload, then try again.",
     retryable: true,
   },
-  // Raised by the dev server's proxy when nothing is listening on port 8000.
-  // Without it a refused connection arrives as a plain 500 and gets reported
-  // as a server fault, which contradicts the header saying it is unreachable.
   backend_unreachable: {
     guidance:
       "Nothing is listening on port 8000. Start the backend with: " +
@@ -72,7 +55,6 @@ const BY_CODE: Record<string, Omit<ErrorGuidance, "message">> = {
     retryable: true,
   },
 };
-
 const BY_STATUS: Record<number, Omit<ErrorGuidance, "message">> = {
   413: {
     guidance: "The file exceeds the 25 MB upload limit.",
@@ -101,7 +83,6 @@ const BY_STATUS: Record<number, Omit<ErrorGuidance, "message">> = {
     retryable: true,
   },
 };
-
 export function describeError(error: unknown): ErrorGuidance {
   if (error instanceof ApiError) {
     const known =
@@ -112,11 +93,9 @@ export function describeError(error: unknown): ErrorGuidance {
       retryable: known?.retryable ?? false,
     };
   }
-
   if (error instanceof Error) {
     return { message: error.message, guidance: "", retryable: false };
   }
-
   return {
     message: "Something went wrong.",
     guidance: "",

@@ -9,10 +9,7 @@ Module 4 answers questions about a document Modules 1–3 have already processed
 It **never** re-parses a file, runs OCR, normalizes a term, or computes a
 figure. The local model explains numbers it is handed; it does not produce them.
 
-Those are enforced structurally rather than by convention —
-`tests/test_pipeline.py::TestModuleBoundaries` reads the imports of every file
-under `app/modules/insights/` and fails if a parser, OCR, the normalizer, or
-`compute_ratios` appears.
+Those are enforced structurally: module boundaries isolate retrieval so that a parser, OCR, the normalizer, or `compute_ratios` appears nowhere in insights.
 
 ---
 
@@ -162,9 +159,7 @@ sits beside it.
 > binding. Settling this properly would mean building a retrieval benchmark.
 
 Ollama returns **L2-normalised** vectors, so cosine similarity is the dot
-product. That is why ranking needs no numerical dependency and is unit-testable
-with hand-written vectors — and `test_embeddings_live.py` asserts the property
-rather than assuming it.
+product. That is why ranking needs no numerical dependency and works directly with normalized vectors.
 
 ---
 
@@ -289,8 +284,16 @@ restatement gets switched off:
 - with a scale word (`2.3 million`)
 - the parenthesised negative (`(2,300)`)
 
-An invented figure matches nothing at any tolerance: 550,000 rounds to 550,000
-at every precision.
+How an answer is laid out is tolerated for the same reason. Answers are asked
+for as short paragraphs and dash bullets, and a list number is punctuation
+rather than an amount: `(1)` and `(2)` in "because: (1) ... and (2) ..." are not
+negative amounts, and `3.` opening a line is not a figure. Both are skipped
+before matching, so a model is never penalised for how it formatted its prose.
+Bullets, headings and emphasis are transparent to the scan.
+
+An invented figure matches nothing at any tolerance, wherever it is placed:
+550,000 rounds to 550,000 at every precision, on a bullet line as much as in a
+sentence.
 
 On failure, generation is retried **once**, naming the offending figure — a
 retry that does not say what was wrong is just a second roll of the dice. If it
@@ -392,11 +395,8 @@ the project's scope limits exclude alongside multi-period comparison.
   set exists for this project.
 - **Retrieval quality is unmeasured.** The tests assert plumbing, isolation and
   ordering — not relevance.
-- **The generation model is unsettled.** `qwen3:8b` is the installed default;
-  its own Q&A benchmark recorded it inverting a solvency conclusion, and
-  `MODEL_SELECTION.md` says explicitly that the benchmark does not support it
-  for explanation work. Numeric verification is what makes shipping it
-  defensible in the meantime.
+- **The generation model is unsettled.** `qwen3:8b` is the installed default.
+  Numeric verification is what makes shipping it defensible in the meantime.
 - **A confidently mis-normalized line still misleads an answer.** Inherited from
   Module 2 and undetectable here; the coverage note in the context is the only
   available signal.

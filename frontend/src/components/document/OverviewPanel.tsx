@@ -1,12 +1,3 @@
-/**
- * Module 1's verdict and the evidence behind it.
- *
- * A rejection is shown first and in full. `core/schemas.py` keeps rejected
- * submissions deliberately - "an auditor needs to see what was refused and why
- * as much as what was accepted" - and that is only true if the refusal is
- * actually legible here.
- */
-
 import type { ReactElement } from "react";
 import type {
   BalanceSheetDocument,
@@ -18,14 +9,12 @@ import type {
 import { MoneyValue } from "../common/Figures";
 import { StatusPill } from "../common/StatusPill";
 import styles from "./OverviewPanel.module.css";
-
 const REJECTION_TITLE: Record<string, string> = {
   unreadable: "Could not be read",
   not_a_balance_sheet: "Not a Balance Sheet",
   missing_required_fields: "A required total is missing",
   equation_unbalanced: "The accounting equation does not balance",
 };
-
 export function OverviewPanel({
   document,
 }: {
@@ -45,7 +34,6 @@ export function OverviewPanel({
           </p>
         </section>
       )}
-
       {document.errors.length > 0 && (
         <section className="card">
           <h2 className="eyebrow">Processing notes</h2>
@@ -56,7 +44,6 @@ export function OverviewPanel({
           </ul>
         </section>
       )}
-
       <div className={styles.grid}>
         {document.equation_check && (
           <EquationPanel
@@ -68,18 +55,10 @@ export function OverviewPanel({
           <IdentificationPanel evidence={document.identification} />
         )}
       </div>
-
       {document.period && <PeriodPanel period={document.period} />}
     </>
   );
 }
-
-/**
- * Total Assets = Total Liabilities + Equity.
- *
- * `difference` is signed and always shown, so a near-miss inside tolerance is
- * visible rather than silently passing.
- */
 function EquationPanel({
   check,
   validation,
@@ -95,39 +74,29 @@ function EquationPanel({
         <dd>
           <MoneyValue value={check.total_assets} />
         </dd>
-
         <dt>Total liabilities</dt>
         <dd>
           <MoneyValue value={check.total_liabilities} />
         </dd>
-
         <dt>Total equity</dt>
         <dd>
           <MoneyValue value={check.total_equity} />
         </dd>
-
         <div className={styles.equationRule} role="presentation" />
-
         <dt className={styles.equationTotal}>Liabilities + equity</dt>
         <dd className={styles.equationTotal}>
           <MoneyValue value={check.expected} />
         </dd>
-
         <dt>Difference</dt>
         <dd>
           <MoneyValue value={check.difference} negativeStyle="minus" />
         </dd>
-
         <dt>Tolerance applied</dt>
         <dd>
-          {/* A derived threshold, so it arrives with the full scale of the
-              percentage that produced it - "11,500.000" among a column of
-              whole amounts reads as a typo. The value is unchanged; only
-              insignificant trailing zeros are dropped. */}
+          {}
           <MoneyValue value={check.tolerance_applied} trimTrailingZeros />
         </dd>
       </dl>
-
       <div className={styles.verdict}>
         <StatusPill tone={check.balanced ? "ok" : "bad"}>
           {check.balanced ? "Balances" : "Does not balance"}
@@ -136,7 +105,6 @@ function EquationPanel({
           <span className="muted">Required fields missing</span>
         )}
       </div>
-
       {validation && validation.missing_fields.length > 0 && (
         <ul className={styles.missing}>
           {validation.missing_fields.map((field) => (
@@ -147,8 +115,6 @@ function EquationPanel({
     </section>
   );
 }
-
-/** Why the system concluded this is - or is not - a Balance Sheet. */
 function IdentificationPanel({
   evidence,
 }: {
@@ -166,7 +132,6 @@ function IdentificationPanel({
           {evidence.is_balance_sheet ? "Balance Sheet" : "Not recognised"}
         </StatusPill>
       </div>
-
       {evidence.signals.length > 0 && (
         <details className={styles.details}>
           <summary className={styles.summary}>
@@ -189,19 +154,10 @@ function IdentificationPanel({
     </section>
   );
 }
-
-/**
- * Which reporting period was analysed.
- *
- * The unanalysed candidates are listed because the scope limit is a real
- * constraint a reader should be able to see: a comparative sheet has other
- * columns, and no figure was ever read from them.
- */
 function PeriodPanel({ period }: { period: PeriodSelection }) {
   const others = period.candidates.filter(
     (candidate) => candidate.label !== period.selected.label,
   );
-
   return (
     <section className="card">
       <h2 className="eyebrow">Reporting period</h2>
@@ -209,7 +165,6 @@ function PeriodPanel({ period }: { period: PeriodSelection }) {
         <strong>{period.selected.label}</strong>
         <span className="muted"> — {period.reason}</span>
       </p>
-
       {others.length > 0 && (
         <>
           <p className="muted">

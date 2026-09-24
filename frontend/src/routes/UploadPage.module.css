@@ -2,13 +2,7 @@
   margin-top: var(--space-4);
 }
 
-/*
- * Explanatory text in a full-width card.
- *
- * A single 60ch column inside a ~950px card left most of the card empty. The
- * measure still has to stay readable, so the text runs in two columns on a
- * wide viewport rather than being stretched across the whole width.
- */
+
 .prose {
   column-gap: var(--space-6);
 }

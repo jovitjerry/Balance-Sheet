@@ -37,8 +37,7 @@
   display: inline-block;
 }
 
-/* The nested file input is the focusable element, but it is 1px and clipped.
-   Its ring is drawn here instead, on the control a keyboard user can see. */
+
 .label:focus-within {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

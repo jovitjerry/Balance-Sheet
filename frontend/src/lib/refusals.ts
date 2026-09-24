@@ -1,26 +1,9 @@
-/**
- * What a refusal means, in plain English.
- *
- * The seven codes are the closed set defined in
- * `modules/insights/service.py`. A refusal is a **correct outcome**, not an
- * error - "a Balance Sheet does not report profit" is the right answer to that
- * question - so none of this copy apologises, and none of it is coloured red.
- *
- * `unverifiable_figures` is the one worth reading twice. It means the model
- * produced a figure that could not be traced to the context, and the answer
- * was withheld rather than shown. That is the safety net doing its job, and it
- * is described that way.
- */
-
 import type { RefusalReason } from "../types/answers";
-
 export interface RefusalCopy {
   title: string;
   explanation: string;
-  /** What the reader can usefully do instead. */
   suggestion?: string;
 }
-
 const COPY: Record<RefusalReason, RefusalCopy> = {
   out_of_scope: {
     title: "A Balance Sheet cannot answer that",
@@ -79,18 +62,14 @@ const COPY: Record<RefusalReason, RefusalCopy> = {
     suggestion: "Start Ollama and ask again.",
   },
 };
-
 const FALLBACK: RefusalCopy = {
   title: "This question was not answered",
   explanation: "The system declined to answer from this document.",
 };
-
 export function describeRefusal(
   reason: string | null | undefined,
 ): RefusalCopy {
   if (!reason) return FALLBACK;
   return COPY[reason as RefusalReason] ?? FALLBACK;
 }
-
-/** Every code this module knows about. Used by its tests. */
 export const REFUSAL_REASONS = Object.keys(COPY) as RefusalReason[];

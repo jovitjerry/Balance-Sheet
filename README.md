@@ -190,7 +190,7 @@ Full reference: [`backend/docs/RAG.md`](backend/docs/RAG.md).
 
 ## Stack
 
-React + Vite + TypeScript · Python + FastAPI · MongoDB Atlas · pytest / Vitest
+React + Vite + TypeScript · Python + FastAPI · MongoDB Atlas
 
 Module 1 parsing: **pdfplumber** (digital PDF text and tables) · **pypdfium2** (rasterisation) · **Tesseract** via pytesseract (OCR) · **openpyxl** (`.xlsx`)
 
@@ -254,105 +254,8 @@ npm run dev
 
 Runs on http://localhost:5173 and proxies `/api` to the backend.
 
-## Tests
-
-The suite splits three ways by what a test needs from outside the process:
-
-| Kind | Needs | Marked by |
-|---|---|---|
-| **unit** | nothing | — |
-| **integration** | a reachable MongoDB cluster | using the `test_db` fixture |
-| **ocr** | the Tesseract system binary | using the `ocr_engine` fixture |
-| **llm** | Ollama running with the model pulled | using the `ollama_provider` fixture |
-| **embeddings** | the *embedding* model pulled — a different model | using the `embedding_provider` fixture |
-| **benchmark** | Ollama and the candidate models | an explicit `@pytest.mark.benchmark` |
-
-Markers are applied automatically from fixture usage, so there is no decorator to forget. Integration tests run against a separate `<MONGODB_DB>_test` database which is dropped afterwards — a test run never touches real data.
-
-```powershell
-cd backend; .\.venv\Scripts\Activate.ps1
-
-pytest                                              # everything; unavailable dependencies skip
-pytest -m "not integration and not ocr and not llm and not embeddings"  # pure unit — nothing external
-pytest -m integration --require-mongo               # integration only — unreachable Atlas FAILS
-pytest -m ocr --require-ocr                         # OCR only — missing Tesseract FAILS
-pytest -m "llm and not benchmark" --require-ollama  # the live Ollama round trip
-pytest -m embeddings --require-embeddings           # the live embedding round trip
-pytest -m benchmark --require-ollama                # the model comparison — slow, opt-in
-```
-
-`--require-mongo`, `--require-ocr` and `--require-ollama` turn the default skip into a hard failure. Use them in CI and whenever you are deliberately verifying that dependency: there, a missing binary or a failed connection quietly reported as "skipped" is a false green.
-
-Almost nothing needs a live model. The whole normalization ladder — every
-validation rule and every failure mode — is exercised against a stub
-provider, because a real model gives no reliable way to produce a malformed
-answer on demand. What the `llm` tests cover is the transport.
-
-**Module 3 needs nothing at all.** Its acceptance tests run the entire chain —
-parse, identify, select the period, locate the totals, extract every line item,
-normalize the terminology, compute the ratios — against the real Meridian and
-ABC fixtures with the model switched off, using a provider that raises if it is
-ever called. Every label on those documents already spells its canonical
-concept, so the identity dictionary resolves all of them. The expected values
-are hand-derived from the printed figures, and the derived subtotals must land
-on exactly the subtotals the document itself prints and Module 2 discards.
-
-## Choosing the model
-
-`OLLAMA_MODEL` is meant to be settled by measurement, not by reputation.
-
-```powershell
-ollama pull qwen3:8b; ollama pull qwen3:4b; ollama pull llama3.1:8b
-ollama pull martain7r/finance-llama-8b
-
-cd backend; .\.venv\Scripts\Activate.ps1; python -m benchmarks.runner
-```
-
-75 labelled cases — canonical wordings, synonyms, abbreviations, unusual
-phrasings, genuinely ambiguous labels and nonsense — go to each candidate,
-and `benchmarks/results/comparison.md` gets the table.
-
-**Accuracy and abstention are scored separately, on purpose.** A model that
-never says "I don't know" scores well on the easy cases and is dangerous in
-production, because on the ambiguous ones it produces a confident wrong
-category that nothing downstream can detect. `finance-llama-8b` is included
-as a hypothesis to test rather than a favourite: it is tuned for financial QA
-and sentiment, not label-to-taxonomy mapping, and domain fine-tunes often
-lose the instruction-following of the base model they came from.
-`benchmarks/qa_cases.json` scores the same models on Module 4-style questions
-separately, so a good classifier that is a poor explainer is visible as such.
-
-### Result
-
-**`qwen3:8b` is the selected model for Module 2**, decided 2026-08-26 from the
-measurements below. The full record, including the limitations of the
-evidence, is in [`benchmarks/results/MODEL_SELECTION.md`](backend/benchmarks/results/MODEL_SELECTION.md).
-
-| Model | Accuracy | Correct abstention | Over-answered | Cold | Warm mean | VRAM (MB) |
-|---|---|---|---|---|---|---|
-| **qwen3:8b** | **97%** | 54% | 46% | 80.9s | **4.15s** | 6460 |
-| qwen3:4b | 95% | **62%** | **38%** | 15.7s | 4.68s | **4160** |
-| llama3.1:8b | 95% | 46% | 54% | 18.1s | 4.39s | 6156 |
-| finance-llama-8b:q4_k_m | 95% | **15%** | **85%** | 11.5s | 4.85s | 5141 |
-
-It won on accuracy, output cleanliness and steady-state latency. The
-finance-tuned candidate did not beat it and was the worst on abstention by a
-wide margin — it answered every ambiguous label and three of five nonsense
-ones, mapping `Schedule 14` to `cash_and_cash_equivalents`. Domain tuning on
-financial text did not help with label-to-taxonomy mapping.
-
-Two things the record keeps honest: the accuracy lead is a **single case**
-(60/62 vs 59/62, one run), and this model has the **slowest cold start** at
-80.9s. `qwen3:4b` is the obvious alternative if headroom or first-request
-latency matters more than the last point of accuracy.
-
-**This does not settle Module 4.** That module will drive the same provider
-with different prompts and must be evaluated on its own evidence; the Q&A
-benchmark does not support this model for explanation work. `OLLAMA_MODEL`
-stays a setting behind the `LlmProvider` seam so the two choices stay separate.
-
 ## Notes
 
 - Commands are PowerShell; chain with `;` rather than `&&`.
 - OCR requires the **Tesseract system binary**; normalization requires **Ollama** with a model pulled. Neither is a pip package.
-- See [CLAUDE.md](CLAUDE.md) for architecture constraints and module boundaries.
+

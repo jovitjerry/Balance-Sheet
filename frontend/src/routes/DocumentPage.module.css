@@ -3,10 +3,7 @@
   gap: var(--space-1);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
-  /* `overflow-x: auto` alone makes overflow-y compute to `auto` as well, and
-     the -1px margin below leaves the content one pixel taller than the box -
-     which was enough to raise a vertical scrollbar that stole 17px from the
-     strip and showed arrows beside the tabs. */
+  
   overflow-y: hidden;
   scrollbar-width: thin;
 }
@@ -66,9 +63,7 @@
   font-size: 0.875rem;
 }
 
-/* All four tabs must fit a 360px viewport without scrolling - "Ask" being the
-   one pushed off the end is the worst possible casualty, since it is the only
-   tab that is not also reachable by reading. */
+
 @media (max-width: 34rem) {
   .tab {
     padding: var(--space-3) var(--space-2);

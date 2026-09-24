@@ -1,13 +1,6 @@
-/**
- * One document, four views.
- *
- * The id comes from the URL and nowhere else, and `useDocument` clears its
- * state the instant that id changes - so nothing from a previously-viewed
- * document can survive into this one.
- */
-
 import { Link, useParams } from "react-router-dom";
 import { AskPanel } from "../components/ask/AskPanel";
+import { CurrencyProvider } from "../components/common/CurrencyContext";
 import { ErrorNotice } from "../components/common/ErrorNotice";
 import { Skeleton } from "../components/common/Feedback";
 import { DocumentHeader } from "../components/document/DocumentHeader";
@@ -17,18 +10,15 @@ import { RatioGrid } from "../components/ratios/RatioGrid";
 import { useDocument } from "../state/useDocument";
 import type { BalanceSheetDocument } from "../types/balanceSheet";
 import styles from "./DocumentPage.module.css";
-
 const TABS = [
   { key: "", label: "Overview" },
   { key: "statement", label: "Balance Sheet" },
   { key: "ratios", label: "Ratios" },
   { key: "ask", label: "Ask" },
 ] as const;
-
 export default function DocumentPage() {
   const { documentId, tab = "" } = useParams();
   const { state, reload } = useDocument(documentId);
-
   if (state.kind === "loading" || state.kind === "idle") {
     return (
       <div className={styles.skeletons}>
@@ -38,7 +28,6 @@ export default function DocumentPage() {
       </div>
     );
   }
-
   if (state.kind === "error") {
     return (
       <>
@@ -53,19 +42,15 @@ export default function DocumentPage() {
       </>
     );
   }
-
   const document = state.document;
   const id = documentId ?? "";
-
   return (
     <>
       <DocumentHeader document={document} />
-
       <nav className={styles.tabs}>
         {TABS.map(({ key, label }) => {
           const to = key ? `/documents/${id}/${key}` : `/documents/${id}`;
           const blocked = isBlocked(document, key);
-
           if (blocked) {
             return (
               <span
@@ -78,7 +63,6 @@ export default function DocumentPage() {
               </span>
             );
           }
-
           return (
             <Link
               key={key}
@@ -91,29 +75,20 @@ export default function DocumentPage() {
           );
         })}
       </nav>
-
-      <div className={styles.panel}>
-        <TabContent document={document} tab={tab} documentId={id} />
-      </div>
+      {}
+      <CurrencyProvider document={document}>
+        <div className={styles.panel}>
+          <TabContent document={document} tab={tab} documentId={id} />
+        </div>
+      </CurrencyProvider>
     </>
   );
 }
-
-/**
- * Why a tab cannot be opened, or `null` if it can.
- *
- * A rejected document keeps its Overview - the verdict and its evidence are
- * exactly what a reader needs - but its figures are closed off, for the same
- * reason the API refuses questions about it: Module 1 decided nobody should be
- * reading numbers off this sheet, and presenting them anyway would lend them a
- * credibility that verdict denied them.
- */
 function isBlocked(
   document: BalanceSheetDocument,
   tab: string,
 ): string | null {
   if (tab === "") return null;
-
   if (document.status === "rejected") {
     return "This document was rejected during validation, so its figures are not shown.";
   }
@@ -128,7 +103,6 @@ function isBlocked(
   }
   return null;
 }
-
 function TabContent({
   document,
   tab,
@@ -150,14 +124,13 @@ function TabContent({
       </div>
     );
   }
-
   switch (tab) {
     case "statement":
       return <StatementView document={document} />;
     case "ratios":
       return <RatioGrid ratios={document.ratios ?? null} />;
     case "ask":
-      return <AskPanel documentId={documentId} document={document} />;
+      return <AskPanel documentId={documentId} />;
     default:
       return <OverviewPanel document={document} />;
   }

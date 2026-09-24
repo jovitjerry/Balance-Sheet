@@ -1,19 +1,4 @@
-/**
- * Design tokens and the global baseline.
- *
- * Component layout lives in `*.module.css` beside each component; this file
- * holds only what everything shares - the palette, the type scale, the spacing
- * ramp, and the handful of element defaults.
- *
- * Two colour vocabularies are kept deliberately separate:
- *
- *   --up / --down    the SIGN of a figure. Green is not "good" here, it is
- *                    positive. Negative equity is red because it is negative.
- *   --ok/warn/bad    the STATUS of a computation - ok, partial, unavailable.
- *
- * Collapsing them would make a correctly-computed negative working capital
- * look like a system failure, and an unavailable ratio look like a loss.
- */
+
 
 :root {
   --bg: #f7f8fa;
@@ -25,11 +10,11 @@
   --text-strong: #0b0d11;
   --muted: #6b7280;
 
-  /* Sign of a figure. */
+  
   --up: #147d42;
   --down: #b42318;
 
-  /* Status of a computation. */
+  
   --ok: #147d42;
   --warn: #92600a;
   --warn-bg: #fdf6e7;
@@ -44,7 +29,7 @@
   --focus: #2f5cb5;
 
   --font: system-ui, -apple-system, "Segoe UI", sans-serif;
-  /* Every figure is set in this, so digits align in a column. */
+  
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo,
     Consolas, monospace;
 
@@ -127,7 +112,7 @@ h3 {
   font-size: 0.875rem;
 }
 
-/* A small-caps section label, used above grouped content. */
+
 .eyebrow {
   margin: 0 0 var(--space-3);
   font-size: 0.75rem;
@@ -165,7 +150,7 @@ button:disabled {
   opacity: 0.55;
 }
 
-/* ---------------------------------------------------------------- shared */
+
 
 .card {
   background: var(--surface);
@@ -179,10 +164,7 @@ button:disabled {
   font-size: 0.875rem;
 }
 
-/**
- * Every figure in the application. `tabular-nums` is what makes a column of
- * amounts line up on the decimal point rather than drifting by glyph width.
- */
+
 .figure {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -194,7 +176,7 @@ button:disabled {
   color: var(--down);
 }
 
-/* The primary action. One accent colour, used only for things you can press. */
+
 .button {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);

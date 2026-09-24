@@ -56,7 +56,7 @@
   color: var(--muted);
 }
 
-/* The printed total: a rule above it, never a fill. */
+
 .total td {
   border-top: 2px solid var(--border-strong);
   border-bottom: 0;

@@ -27,9 +27,7 @@
   text-align: right;
 }
 
-/* A single element spanning both grid columns.
-   The rule used to be a `border-top` on the `dt` and the `dd` separately,
-   which the 16px column gap split into two visibly disconnected segments. */
+
 .equationRule {
   grid-column: 1 / -1;
   height: 1px;

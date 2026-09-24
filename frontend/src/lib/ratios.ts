@@ -1,13 +1,3 @@
-/**
- * Display vocabulary for Module 3's results.
- *
- * The names, reason codes and warning codes below are copied from
- * `modules/ratios/definitions.py` and `modules/ratios/aggregation.py`, where
- * each is a closed set. Nothing is invented here: a code with no entry falls
- * back to its raw value rather than to a plausible-sounding sentence.
- */
-
-/** The seven, in reading order: liquidity first, then leverage. */
 export const RATIO_ORDER = [
   "current_ratio",
   "quick_ratio",
@@ -17,7 +7,6 @@ export const RATIO_ORDER = [
   "debt_ratio",
   "equity_ratio",
 ] as const;
-
 export const RATIO_LABEL: Record<string, string> = {
   current_ratio: "Current ratio",
   quick_ratio: "Quick ratio",
@@ -27,7 +16,6 @@ export const RATIO_LABEL: Record<string, string> = {
   debt_ratio: "Debt ratio",
   equity_ratio: "Equity ratio",
 };
-
 export const RATIO_GROUP: Record<string, "liquidity" | "leverage"> = {
   current_ratio: "liquidity",
   quick_ratio: "liquidity",
@@ -37,13 +25,10 @@ export const RATIO_GROUP: Record<string, "liquidity" | "leverage"> = {
   debt_ratio: "leverage",
   equity_ratio: "leverage",
 };
-
 export const GROUP_LABEL: Record<string, string> = {
   liquidity: "Liquidity",
   leverage: "Leverage and structure",
 };
-
-/** `REASONS` in `modules/ratios/aggregation.py`. */
 export const RATIO_REASON: Record<string, string> = {
   missing_section_total:
     "A section total this ratio needs was not found on the document.",
@@ -56,8 +41,6 @@ export const RATIO_REASON: Record<string, string> = {
   not_extracted: "The line items this ratio needs were not extracted.",
   not_representable: "The result could not be represented exactly.",
 };
-
-/** The warning codes a computed ratio can carry. */
 export const RATIO_WARNING: Record<string, string> = {
   unmapped_inputs:
     "Some line items could not be mapped to the canonical vocabulary and were " +
@@ -68,23 +51,52 @@ export const RATIO_WARNING: Record<string, string> = {
   negative_result:
     "The result is negative. It is reported with its sign and is not clamped.",
 };
-
 export function ratioLabel(name: string): string {
   return RATIO_LABEL[name] ?? name.replace(/_/g, " ");
 }
-
 export function describeRatioReason(reason: string | null | undefined): string {
   if (!reason) return "";
   return RATIO_REASON[reason] ?? reason.replace(/_/g, " ");
 }
-
 export function describeRatioWarning(warning: string): string {
   return RATIO_WARNING[warning] ?? warning.replace(/_/g, " ");
 }
-
-/** How a figure was arrived at, per side of a ratio. */
 export const BASIS_LABEL: Record<string, string> = {
-  section_total: "printed section total",
-  derived_sum: "summed from classified line items",
-  composite: "mixed - a printed total adjusted by line items",
+  section_total: "as printed on the document",
+  derived_sum: "added up from the line items below",
+  composite: "a printed total, adjusted by line items",
 };
+export interface FormulaParts {
+  left: string;
+  right: string;
+  operator: "÷" | "−";
+}
+export function splitFormula(formula: string): FormulaParts | null {
+  const divide = topLevelIndex(formula, " / ");
+  if (divide >= 0) {
+    return {
+      left: formula.slice(0, divide).trim(),
+      right: formula.slice(divide + 3).trim(),
+      operator: "÷",
+    };
+  }
+  const subtract = topLevelIndex(formula, " - ");
+  if (subtract >= 0) {
+    return {
+      left: formula.slice(0, subtract).trim(),
+      right: formula.slice(subtract + 3).trim(),
+      operator: "−",
+    };
+  }
+  return null;
+}
+function topLevelIndex(formula: string, token: string): number {
+  let depth = 0;
+  for (let i = 0; i < formula.length; i += 1) {
+    const char = formula[i];
+    if (char === "(") depth += 1;
+    else if (char === ")") depth -= 1;
+    else if (depth === 0 && formula.startsWith(token, i)) return i;
+  }
+  return -1;
+}

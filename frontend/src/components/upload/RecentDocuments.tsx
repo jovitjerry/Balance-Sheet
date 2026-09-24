@@ -1,11 +1,3 @@
-/**
- * Documents this browser has uploaded.
- *
- * Backed by localStorage because the API has no list endpoint. The caveat is
- * stated in the UI rather than left for someone to discover: this list is
- * per-browser, and an entry can outlive the document it points at.
- */
-
 import type { ReactElement } from "react";
 import { Link } from "react-router-dom";
 import type { RegistryEntry } from "../../state/useDocumentRegistry";
@@ -15,18 +7,15 @@ import {
   StatusPill,
 } from "../common/StatusPill";
 import styles from "./RecentDocuments.module.css";
-
 interface RecentDocumentsProps {
   entries: RegistryEntry[];
   onRemove: (id: string) => void;
 }
-
 export function RecentDocuments({
   entries,
   onRemove,
 }: RecentDocumentsProps): ReactElement | null {
   if (entries.length === 0) return null;
-
   return (
     <section className="card">
       <h2 className="eyebrow">Recent documents</h2>
@@ -65,7 +54,6 @@ export function RecentDocuments({
     </section>
   );
 }
-
 function formatWhen(iso: string): string {
   const when = new Date(iso);
   if (Number.isNaN(when.getTime())) return iso;

@@ -68,10 +68,7 @@
   color: var(--warn);
 }
 
-/* Pushed to the bottom of the card. The cards in a row are already equal
-   height, but their contents are not - a longer formula or a warning line
-   pushed this disclosure down, so the row of "How this was computed" links
-   sat at four different heights. */
+
 .details {
   margin-top: auto;
   border-top: 1px solid var(--border);
@@ -86,31 +83,75 @@
 }
 
 .definition {
-  margin: var(--space-3) 0 0;
-  font-size: 0.8125rem;
-  color: var(--muted);
-}
-
-.operands {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-3);
-  margin: var(--space-3) 0 0;
-  font-size: 0.8125rem;
-}
-
-.operands dt {
-  color: var(--muted);
-}
-
-.operands dd {
   margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
 }
+
+
+.steps {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+}
+
+.stepLabel {
+  margin-top: var(--space-3);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stepLabel:first-child {
+  margin-top: 0;
+}
+
+.stepBody {
+  margin: var(--space-1) 0 0;
+  min-width: 0;
+}
+
+.formulaText {
+  font-family: var(--mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
+}
+
+.operand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-1);
+}
+
+.operand:last-child {
+  margin-bottom: 0;
+}
+
+.operandName {
+  overflow-wrap: anywhere;
+}
+
+
+.calculation {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 
 .basis {
-  display: block;
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+
+.inputHeading {
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .inputs {
