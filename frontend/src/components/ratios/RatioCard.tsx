@@ -6,21 +6,36 @@ import {
   ratioLabel,
   splitFormula,
 } from "../../lib/ratios";
-import type { RatioInput, RatioResult } from "../../types/balanceSheet";
+import type { RatioResult } from "../../types/balanceSheet";
 import { MoneyValue, RatioValue } from "../common/Figures";
 import { RATIO_STATUS_LABEL, ratioStatusTone, StatusPill } from "../common/StatusPill";
 import styles from "./RatioCard.module.css";
-export function RatioCard({ ratio }: { ratio: RatioResult }): ReactElement {
+
+export function RatioCard({
+  ratio,
+  isExpanded = false,
+  onToggle,
+}: {
+  ratio: RatioResult;
+  isExpanded?: boolean;
+  onToggle?: () => void;
+}): ReactElement {
   const money = ratio.unit === "currency";
   const unavailable = ratio.status === "unavailable";
+
   return (
-    <article className={styles.card} data-status={ratio.status}>
+    <article
+      className={styles.card}
+      data-status={ratio.status}
+      data-expanded={isExpanded}
+    >
       <div className={styles.head}>
         <h3 className={styles.name}>{ratioLabel(ratio.name)}</h3>
         <StatusPill tone={ratioStatusTone(ratio.status)}>
           {RATIO_STATUS_LABEL[ratio.status]}
         </StatusPill>
       </div>
+
       <div className={styles.value}>
         {unavailable ? (
           <span>Not computed</span>
@@ -30,27 +45,210 @@ export function RatioCard({ ratio }: { ratio: RatioResult }): ReactElement {
           <RatioValue value={ratio.value} />
         )}
       </div>
-      {}
+
       <p className={styles.formula}>{readableFormula(ratio.formula)}</p>
+
       {unavailable && ratio.reason && (
         <p className={styles.reason}>{describeRatioReason(ratio.reason)}</p>
       )}
+
       {ratio.status === "partial" && (
         <PartialBound ratio={ratio} money={money} />
       )}
+
       {ratio.warnings.map((warning) => (
         <p key={warning} className={styles.warning}>
           {describeRatioWarning(warning)}
         </p>
       ))}
-      {!unavailable && <RatioDetail ratio={ratio} money={money} />}
+
+      {!unavailable && onToggle && (
+        <button
+          type="button"
+          className={styles.toggleBtn}
+          onClick={onToggle}
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? "Hide calculation details ▲" : "How this was computed ▼"}
+        </button>
+      )}
     </article>
   );
 }
+
+export function RatioDetailPanel({
+  ratio,
+  onClose,
+}: {
+  ratio: RatioResult;
+  onClose: () => void;
+}): ReactElement {
+  const money = ratio.unit === "currency";
+  const parts = splitFormula(ratio.formula);
+  const hasInputs =
+    ratio.numerator_inputs.length > 0 ||
+    ratio.denominator_inputs.length > 0 ||
+    ratio.excluded.length > 0;
+
+  return (
+    <div className={styles.detailPanel}>
+      <div className={styles.panelHeader}>
+        <h3 className={styles.panelTitle}>{ratioLabel(ratio.name)}</h3>
+        <button
+          type="button"
+          className={styles.closeBtn}
+          onClick={onClose}
+          aria-label="Close calculation details"
+        >
+          ✕ Close
+        </button>
+      </div>
+
+      <div className={styles.panelGrid}>
+        {}
+        <div className={styles.panelCol}>
+          <div className={styles.block}>
+            <span className={styles.blockLabel}>Formula</span>
+            <code className={styles.formulaCode}>{readableFormula(ratio.formula)}</code>
+          </div>
+
+          <div className={styles.block}>
+            <span className={styles.blockLabel}>Calculation</span>
+            <div className={styles.calcBox}>
+              <MoneyValue value={ratio.numerator} negativeStyle="minus" withSymbol />{" "}
+              <span className={styles.mathOp}>{parts ? parts.operator : "÷"}</span>{" "}
+              <MoneyValue value={ratio.denominator} negativeStyle="minus" withSymbol />
+              {" = "}
+              <span className={styles.calcResult}>
+                {money ? (
+                  <MoneyValue value={ratio.value} negativeStyle="minus" withSymbol />
+                ) : (
+                  <RatioValue value={ratio.value} />
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.block}>
+            <span className={styles.blockLabel}>What it means</span>
+            <p className={styles.definitionText}>{ratio.definition}</p>
+          </div>
+        </div>
+
+        {}
+        <div className={styles.panelCol}>
+          <div className={styles.block}>
+            <span className={styles.blockLabel}>Values Used</span>
+            <div className={styles.operandsList}>
+              <Operand
+                name={parts ? parts.left : money ? "First amount" : "Numerator"}
+                value={ratio.numerator}
+                basis={ratio.numerator_basis}
+              />
+              <Operand
+                name={parts ? parts.right : money ? "Second amount" : "Denominator"}
+                value={ratio.denominator}
+                basis={ratio.denominator_basis}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {}
+      {hasInputs && (
+        <details className={styles.fullBreakdownSection}>
+          <summary className={styles.breakdownToggle}>Component line items</summary>
+          <div className={styles.breakdownTablesGrid}>
+            {ratio.numerator_inputs.length > 0 && (
+              <div className={styles.tableBlock}>
+                <span className={styles.tableHeading}>
+                  {money ? "Lines added up" : "Numerator line items"}
+                </span>
+                <table className={styles.inputTable}>
+                  <thead>
+                    <tr>
+                      <th>Line Item</th>
+                      <th className={styles.rightAlign}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ratio.numerator_inputs.map((inp, idx) => (
+                      <tr key={`num-${inp.label}-${idx}`}>
+                        <td>{inp.label}</td>
+                        <td className={styles.rightAlign}>
+                          <MoneyValue value={inp.value} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {ratio.denominator_inputs.length > 0 && (
+              <div className={styles.tableBlock}>
+                <span className={styles.tableHeading}>
+                  {money ? "Lines subtracted" : "Denominator line items"}
+                </span>
+                <table className={styles.inputTable}>
+                  <thead>
+                    <tr>
+                      <th>Line Item</th>
+                      <th className={styles.rightAlign}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ratio.denominator_inputs.map((inp, idx) => (
+                      <tr key={`den-${inp.label}-${idx}`}>
+                        <td>{inp.label}</td>
+                        <td className={styles.rightAlign}>
+                          <MoneyValue value={inp.value} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {ratio.excluded.length > 0 && (
+              <div className={`${styles.tableBlock} ${styles.tableBlockWarn}`}>
+                <span className={styles.tableHeadingWarn}>
+                  Excluded (unclassified)
+                </span>
+                <table className={styles.inputTable}>
+                  <thead>
+                    <tr>
+                      <th>Line Item</th>
+                      <th className={styles.rightAlign}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ratio.excluded.map((inp, idx) => (
+                      <tr key={`exc-${inp.label}-${idx}`}>
+                        <td>{inp.label}</td>
+                        <td className={styles.rightAlign}>
+                          <MoneyValue value={inp.value} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function readableFormula(formula: string): string {
   const parts = splitFormula(formula);
   return parts ? `${parts.left} ${parts.operator} ${parts.right}` : formula;
 }
+
 function PartialBound({
   ratio,
   money,
@@ -73,77 +271,7 @@ function PartialBound({
     </p>
   );
 }
-function RatioDetail({ ratio, money }: { ratio: RatioResult; money: boolean }) {
-  const parts = splitFormula(ratio.formula);
-  const hasInputs =
-    ratio.numerator_inputs.length > 0 ||
-    ratio.denominator_inputs.length > 0 ||
-    ratio.excluded.length > 0;
-  return (
-    <details className={styles.details}>
-      <summary className={styles.summary}>How this was computed</summary>
-      <dl className={styles.steps}>
-        <dt className={styles.stepLabel}>Formula</dt>
-        <dd className={styles.stepBody}>
-          <span className={styles.formulaText}>
-            {readableFormula(ratio.formula)}
-          </span>
-        </dd>
-        <dt className={styles.stepLabel}>Values used</dt>
-        <dd className={styles.stepBody}>
-          <Operand
-            name={parts ? parts.left : money ? "First amount" : "Numerator"}
-            value={ratio.numerator}
-            basis={ratio.numerator_basis}
-          />
-          <Operand
-            name={parts ? parts.right : money ? "Second amount" : "Denominator"}
-            value={ratio.denominator}
-            basis={ratio.denominator_basis}
-          />
-        </dd>
-        <dt className={styles.stepLabel}>Calculation</dt>
-        <dd className={styles.stepBody}>
-          <p className={styles.calculation}>
-            {ratioLabel(ratio.name)} ={" "}
-            <MoneyValue value={ratio.numerator} negativeStyle="minus" withSymbol />{" "}
-            {parts ? parts.operator : "÷"}{" "}
-            <MoneyValue value={ratio.denominator} negativeStyle="minus" withSymbol />{" "}
-            ={" "}
-            {money ? (
-              <MoneyValue value={ratio.value} negativeStyle="minus" withSymbol />
-            ) : (
-              <RatioValue value={ratio.value} />
-            )}
-          </p>
-        </dd>
-        <dt className={styles.stepLabel}>What it means</dt>
-        <dd className={styles.stepBody}>
-          <p className={styles.definition}>{ratio.definition}</p>
-        </dd>
-      </dl>
-      {hasInputs && (
-        <>
-          <InputList
-            heading={money ? "Lines added up" : "Lines in the first amount"}
-            inputs={ratio.numerator_inputs}
-          />
-          <InputList
-            heading={money ? "Lines subtracted" : "Lines in the second amount"}
-            inputs={ratio.denominator_inputs}
-          />
-          {ratio.excluded.length > 0 && (
-            <InputList
-              heading="Left out — could not be classified"
-              inputs={ratio.excluded}
-              warn
-            />
-          )}
-        </>
-      )}
-    </details>
-  );
-}
+
 function Operand({
   name,
   value,
@@ -154,38 +282,16 @@ function Operand({
   basis: RatioResult["numerator_basis"];
 }) {
   return (
-    <p className={styles.operand}>
-      <span className={styles.operandName}>{name}</span>
-      <MoneyValue value={value} withSymbol />
-      {basis && (
-        <span className={styles.basis}>{BASIS_LABEL[basis] ?? basis}</span>
-      )}
-    </p>
-  );
-}
-function InputList({
-  heading,
-  inputs,
-  warn = false,
-}: {
-  heading: string;
-  inputs: RatioInput[];
-  warn?: boolean;
-}) {
-  if (inputs.length === 0) return null;
-  return (
-    <>
-      <p className={warn ? styles.excludedHeading : styles.inputHeading}>
-        {heading}
-      </p>
-      <ul className={styles.inputs}>
-        {inputs.map((input, index) => (
-          <li key={`${input.label}-${index}`} className={styles.input}>
-            <span className={styles.inputLabel}>{input.label}</span>
-            <MoneyValue value={input.value} />
-          </li>
-        ))}
-      </ul>
-    </>
+    <div className={styles.operandItem}>
+      <div className={styles.operandHeader}>
+        <span className={styles.operandName}>{name}</span>
+        {basis && (
+          <span className={styles.basisBadge}>{BASIS_LABEL[basis] ?? basis}</span>
+        )}
+      </div>
+      <span className={styles.operandValue}>
+        <MoneyValue value={value} withSymbol />
+      </span>
+    </div>
   );
 }

@@ -25,11 +25,6 @@ export default function App() {
       <main className={styles.main}>
         <Outlet />
       </main>
-      <footer className={styles.footer}>
-        Balance Sheet only, single reporting period. Figures are computed in
-        deterministic Python; the language model explains them and never
-        calculates.
-      </footer>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import type {
   BalanceSheetDocument,
   BalanceSheetSection,
+  ExtractedBalanceSheet,
   LineItem,
 } from "../../types/balanceSheet";
 import { humanizeIdentifier, sameConcept } from "../../lib/labels";
@@ -9,11 +10,7 @@ import { signOf } from "../../lib/money";
 import { MoneyValue } from "../common/Figures";
 import { StatusPill } from "../common/StatusPill";
 import styles from "./StatementView.module.css";
-const SECTIONS = [
-  { key: "assets", heading: "Assets" },
-  { key: "liabilities", heading: "Liabilities" },
-  { key: "equity", heading: "Shareholders' equity" },
-] as const;
+
 export function StatementView({
   document,
 }: {
@@ -21,43 +18,176 @@ export function StatementView({
 }): ReactElement | null {
   const extracted = document.extracted;
   if (!extracted) return null;
+
   return (
-    <>
+    <div className={styles.container}>
       {extracted.normalization_summary && (
         <NormalizationSummary summary={extracted.normalization_summary} />
       )}
-      {SECTIONS.map(({ key, heading }) => (
-        <SectionTable
-          key={key}
-          heading={heading}
-          section={extracted[key]}
-        />
-      ))}
-    </>
+      <SummaryBar extracted={extracted} />
+      <div className={styles.statementLayout}>
+        <div className={styles.column}>
+          <SectionTable
+            heading="Assets"
+            section={extracted.assets}
+          />
+        </div>
+        <div className={styles.column}>
+          <SectionTable
+            heading="Liabilities"
+            section={extracted.liabilities}
+          />
+          <SectionTable
+            heading="Shareholders' equity"
+            section={extracted.equity}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
+
+function parseMoney(v: string | null | undefined): number {
+  if (!v) return 0;
+  return parseFloat(v.replace(/,/g, "")) || 0;
+}
+
+function SummaryBar({ extracted }: { extracted: ExtractedBalanceSheet }) {
+  const totalAssets = parseMoney(extracted.assets.total);
+  const totalLiab   = parseMoney(extracted.liabilities.total);
+  const totalEquity = parseMoney(extracted.equity.total);
+  const denominator = Math.max(totalAssets, totalLiab + totalEquity, 1);
+
+  const currentAssets = extracted.assets.line_items
+    .filter(i => {
+      const sub = (i.subsection ?? "").toLowerCase();
+      return sub.includes("current") && !sub.includes("non");
+    })
+    .reduce((s, i) => s + parseMoney(i.value), 0);
+  const nonCurrentAssets = Math.max(0, totalAssets - currentAssets);
+
+  const currentLiab = extracted.liabilities.line_items
+    .filter(i => {
+      const sub = (i.subsection ?? "").toLowerCase();
+      return sub.includes("current") && !sub.includes("non");
+    })
+    .reduce((s, i) => s + parseMoney(i.value), 0);
+  const nonCurrentLiab = Math.max(0, totalLiab - currentLiab);
+
+  const pct = (v: number) =>
+    `${Math.min(100, Math.max(0, (v / denominator) * 100)).toFixed(2)}%`;
+
+  return (
+    <section className={styles.summaryBar}>
+      <h2 className="eyebrow">Balance Sheet Structure</h2>
+      <div className={styles.summaryStructure}>
+        {}
+        <div className={styles.summaryHalf}>
+          <div className={styles.summaryHalfLabel}>
+            Assets
+            <span className={styles.summaryHalfTotal}>
+              <MoneyValue value={extracted.assets.total} />
+            </span>
+          </div>
+          <div className={styles.segBar}>
+            {currentAssets > 0 && (
+              <div
+                className={`${styles.segment} ${styles.segCA}`}
+                style={{ width: pct(currentAssets) }}
+                title={`Current assets: ${pct(currentAssets)}`}
+              />
+            )}
+            {nonCurrentAssets > 0 && (
+              <div
+                className={`${styles.segment} ${styles.segNCA}`}
+                style={{ width: pct(nonCurrentAssets) }}
+                title={`Non-current assets: ${pct(nonCurrentAssets)}`}
+              />
+            )}
+          </div>
+          <div className={styles.segLegend}>
+            <span className={styles.segLegendItem}>
+              <span className={`${styles.segDot} ${styles.segCA}`} />Current
+            </span>
+            <span className={styles.segLegendItem}>
+              <span className={`${styles.segDot} ${styles.segNCA}`} />Non-current
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.summaryDivider} aria-hidden="true">=</div>
+
+        {}
+        <div className={styles.summaryHalf}>
+          <div className={styles.summaryHalfLabel}>
+            Liabilities + Equity
+            <span className={styles.summaryHalfTotal}>
+              <MoneyValue value={extracted.liabilities.total} />
+              {" + "}
+              <MoneyValue value={extracted.equity.total} />
+            </span>
+          </div>
+          <div className={styles.segBar}>
+            {currentLiab > 0 && (
+              <div
+                className={`${styles.segment} ${styles.segCL}`}
+                style={{ width: pct(currentLiab) }}
+                title={`Current liabilities: ${pct(currentLiab)}`}
+              />
+            )}
+            {nonCurrentLiab > 0 && (
+              <div
+                className={`${styles.segment} ${styles.segNCL}`}
+                style={{ width: pct(nonCurrentLiab) }}
+                title={`Non-current liabilities: ${pct(nonCurrentLiab)}`}
+              />
+            )}
+            {totalEquity > 0 && (
+              <div
+                className={`${styles.segment} ${styles.segEq}`}
+                style={{ width: pct(totalEquity) }}
+                title={`Equity: ${pct(totalEquity)}`}
+              />
+            )}
+          </div>
+          <div className={styles.segLegend}>
+            <span className={styles.segLegendItem}>
+              <span className={`${styles.segDot} ${styles.segCL}`} />Current liab.
+            </span>
+            <span className={styles.segLegendItem}>
+              <span className={`${styles.segDot} ${styles.segNCL}`} />Non-current liab.
+            </span>
+            <span className={styles.segLegendItem}>
+              <span className={`${styles.segDot} ${styles.segEq}`} />Equity
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function NormalizationSummary({ summary }: { summary: Record<string, number> }) {
   const entries = Object.entries(summary).filter(([, count]) => count > 0);
   if (entries.length === 0) return null;
   return (
     <section className="card">
-      <h2 className="eyebrow">Terminology mapping</h2>
-      <p className={styles.summary}>
+      <h2 className="eyebrow">Normalization summary</h2>
+      <div className={styles.summaryBadges}>
         {entries.map(([status, count]) => (
-          <span key={status}>
+          <span key={status} className={styles.badgeItem}>
             <span className={styles.count}>{count}</span>{" "}
             {status.replace(/_/g, " ")}
           </span>
         ))}
-      </p>
-      <p className="muted">
-        Labels the local model could not confidently map are marked for review
-        rather than guessed at. The figures are unaffected — extraction
-        completes before any model is consulted.
+      </div>
+      <p className={styles.mappingNote}>
+        Line items mapped to standard canonical accounting vocabulary for consistent financial ratio analysis. Unmapped labels are marked for review.
       </p>
     </section>
   );
 }
+
 function SectionTable({
   heading,
   section,
@@ -67,7 +197,7 @@ function SectionTable({
 }) {
   const groups = groupBySubsection(section.line_items);
   return (
-    <section className="card">
+    <section className={`card ${styles.sectionCard}`}>
       <h2 className="eyebrow">{heading}</h2>
       <div className={styles.section}>
         <table className={styles.table}>
@@ -101,6 +231,7 @@ function SectionTable({
     </section>
   );
 }
+
 function SubsectionRows({
   subsection,
   items,
@@ -125,6 +256,7 @@ function SubsectionRows({
     </>
   );
 }
+
 function LineItemRow({ item }: { item: LineItem }) {
   const normalization = item.normalization;
   const canonical = normalization?.canonical_label;
@@ -135,7 +267,7 @@ function LineItemRow({ item }: { item: LineItem }) {
   return (
     <tr>
       <td className={styles.label}>
-        {item.label}
+        <span className={styles.labelText}>{item.label}</span>
         <span className={styles.flags}>
           {needsReview && (
             <StatusPill
@@ -156,7 +288,6 @@ function LineItemRow({ item }: { item: LineItem }) {
             </StatusPill>
           )}
         </span>
-        {}
         {canonical && !sameConcept(canonical, item.label) && (
           <span className={styles.canonical}>{humanizeIdentifier(canonical)}</span>
         )}
@@ -173,6 +304,7 @@ function LineItemRow({ item }: { item: LineItem }) {
     </tr>
   );
 }
+
 function ReconciliationNote({ section }: { section: BalanceSheetSection }) {
   const difference = section.reconciliation_difference;
   if (!difference || signOf(difference) === 0) return null;
@@ -185,6 +317,7 @@ function ReconciliationNote({ section }: { section: BalanceSheetSection }) {
     </p>
   );
 }
+
 function groupBySubsection(items: LineItem[]) {
   const groups: { subsection: string | null; items: LineItem[] }[] = [];
   for (const item of items) {

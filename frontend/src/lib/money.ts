@@ -35,7 +35,7 @@ function incrementDigits(digits: string): string {
       out[i] = next;
       return out.join("");
     }
-    out[i] = "0"; 
+    out[i] = "0";
   }
   return `1${out.join("")}`;
 }

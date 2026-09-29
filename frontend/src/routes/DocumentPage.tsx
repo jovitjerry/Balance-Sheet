@@ -130,7 +130,7 @@ function TabContent({
     case "ratios":
       return <RatioGrid ratios={document.ratios ?? null} />;
     case "ask":
-      return <AskPanel documentId={documentId} />;
+      return <AskPanel documentId={documentId} document={document} />;
     default:
       return <OverviewPanel document={document} />;
   }

@@ -37,7 +37,6 @@
   display: inline-block;
 }
 
-
 .label:focus-within {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

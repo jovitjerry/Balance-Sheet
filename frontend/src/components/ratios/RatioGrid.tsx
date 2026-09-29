@@ -1,14 +1,17 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { GROUP_LABEL, RATIO_GROUP, RATIO_ORDER } from "../../lib/ratios";
-import type { RatioSet } from "../../types/balanceSheet";
+import type { RatioResult, RatioSet } from "../../types/balanceSheet";
 import { EmptyState } from "../common/Feedback";
-import { RatioCard } from "./RatioCard";
+import { RatioCard, RatioDetailPanel } from "./RatioCard";
 import styles from "./RatioGrid.module.css";
+
 export function RatioGrid({
   ratios,
 }: {
   ratios: RatioSet | null;
 }): ReactElement {
+  const [expandedRatio, setExpandedRatio] = useState<string | null>(null);
+
   if (!ratios || ratios.ratios.length === 0) {
     return (
       <EmptyState title="No ratios were computed">
@@ -16,53 +19,50 @@ export function RatioGrid({
       </EmptyState>
     );
   }
+
   const byName = new Map(ratios.ratios.map((ratio) => [ratio.name, ratio]));
   const groups: Array<"liquidity" | "leverage"> = ["liquidity", "leverage"];
+
   return (
     <>
       {groups.map((group) => {
         const names = RATIO_ORDER.filter((name) => RATIO_GROUP[name] === group);
         const present = names
           .map((name) => byName.get(name))
-          .filter((ratio) => ratio !== undefined);
+          .filter((ratio): ratio is RatioResult => ratio !== undefined);
         if (present.length === 0) return null;
+
+        const activeDetailRatio = present.find(
+          (ratio) => ratio.name === expandedRatio
+        );
+
         return (
-          <section key={group} className={styles.group}>
+          <section key={group} className={styles.group} data-group={group}>
             <h2 className="eyebrow">{GROUP_LABEL[group]}</h2>
             <div className={styles.grid}>
               {present.map((ratio) => (
-                <RatioCard key={ratio.name} ratio={ratio} />
+                <RatioCard
+                  key={ratio.name}
+                  ratio={ratio}
+                  isExpanded={expandedRatio === ratio.name}
+                  onToggle={() =>
+                    setExpandedRatio((current) =>
+                      current === ratio.name ? null : ratio.name
+                    )
+                  }
+                />
               ))}
             </div>
+
+            {activeDetailRatio && (
+              <RatioDetailPanel
+                ratio={activeDetailRatio}
+                onClose={() => setExpandedRatio(null)}
+              />
+            )}
           </section>
         );
       })}
-      <section className="card">
-        <h2 className="eyebrow">About these figures</h2>
-        <p className={styles.caveat}>
-          Computed in deterministic Python from the extracted figures — no
-          language model is involved, and none can be. They come from a single
-          reporting period, so they carry no trend and no industry benchmark; a
-          value is only meaningful beside context this system does not hold.
-        </p>
-        <p className={styles.meta}>
-          <span>Formula set {ratios.spec_version}</span>
-          {ratios.taxonomy_version && (
-            <span>Vocabulary {ratios.taxonomy_version}</span>
-          )}
-          {ratios.currency && <span>{ratios.currency}</span>}
-          {ratios.scale_label && (
-            <span>Printed {ratios.scale_label}, not applied</span>
-          )}
-        </p>
-        {ratios.warnings.length > 0 && (
-          <ul className={styles.warnings}>
-            {ratios.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        )}
-      </section>
     </>
   );
 }

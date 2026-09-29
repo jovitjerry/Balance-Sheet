@@ -3,7 +3,7 @@
   gap: var(--space-1);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
-  
+
   overflow-y: hidden;
   scrollbar-width: thin;
 }
@@ -13,10 +13,11 @@
   text-decoration: none;
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
+  transition: color 0.15s;
 }
 
 .tab:hover {
@@ -62,7 +63,6 @@
 .back {
   font-size: 0.875rem;
 }
-
 
 @media (max-width: 34rem) {
   .tab {

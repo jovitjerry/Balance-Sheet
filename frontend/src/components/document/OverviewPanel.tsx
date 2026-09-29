@@ -4,22 +4,28 @@ import type {
   EquationCheck,
   IdentificationEvidence,
   PeriodSelection,
+  RatioSet,
   ValidationSummary,
 } from "../../types/balanceSheet";
-import { MoneyValue } from "../common/Figures";
+import { MoneyValue, RatioValue } from "../common/Figures";
 import { StatusPill } from "../common/StatusPill";
 import styles from "./OverviewPanel.module.css";
+
 const REJECTION_TITLE: Record<string, string> = {
   unreadable: "Could not be read",
   not_a_balance_sheet: "Not a Balance Sheet",
   missing_required_fields: "A required total is missing",
   equation_unbalanced: "The accounting equation does not balance",
 };
+
 export function OverviewPanel({
   document,
 }: {
   document: BalanceSheetDocument;
 }): ReactElement {
+  const check = document.equation_check;
+  const ratios = document.ratios;
+
   return (
     <>
       {document.rejection && (
@@ -34,6 +40,7 @@ export function OverviewPanel({
           </p>
         </section>
       )}
+
       {document.errors.length > 0 && (
         <section className="card">
           <h2 className="eyebrow">Processing notes</h2>
@@ -44,21 +51,93 @@ export function OverviewPanel({
           </ul>
         </section>
       )}
-      <div className={styles.grid}>
-        {document.equation_check && (
-          <EquationPanel
-            check={document.equation_check}
-            validation={document.validation ?? null}
-          />
-        )}
-        {document.identification && (
-          <IdentificationPanel evidence={document.identification} />
-        )}
+
+      {}
+      {check && <KpiStrip check={check} ratios={ratios ?? null} />}
+
+      {}
+      <div className={styles.overviewLayout}>
+        <div className={styles.mainColumn}>
+          {check && (
+            <EquationPanel
+              check={check}
+              validation={document.validation ?? null}
+            />
+          )}
+          {check && <StructureBar check={check} />}
+        </div>
+
+        <div className={styles.sideColumn}>
+          {document.identification && (
+            <IdentificationPanel evidence={document.identification} />
+          )}
+          {document.period && <PeriodPanel period={document.period} />}
+        </div>
       </div>
-      {document.period && <PeriodPanel period={document.period} />}
     </>
   );
 }
+
+function KpiStrip({
+  check,
+  ratios,
+}: {
+  check: EquationCheck;
+  ratios: RatioSet | null;
+}) {
+  const byName = new Map(ratios?.ratios.map((r) => [r.name, r]) ?? []);
+  const wc = byName.get("working_capital");
+  const cr = byName.get("current_ratio");
+
+  return (
+    <div className={styles.kpiStrip}>
+      <KpiCard label="Total Assets" value={<MoneyValue value={check.total_assets} />} />
+      <KpiCard label="Total Liabilities" value={<MoneyValue value={check.total_liabilities} />} />
+      <KpiCard label="Total Equity" value={<MoneyValue value={check.total_equity} />} />
+      {wc && wc.status !== "unavailable" && (
+        <KpiCard label="Working Capital" value={<MoneyValue value={wc.value} />} />
+      )}
+      {cr && cr.status !== "unavailable" && (
+        <KpiCard
+          label="Current Ratio"
+          value={<RatioValue value={cr.value} />}
+          tone={
+            cr.value
+              ? parseFloat(cr.value) >= 1.5
+                ? "ok"
+                : parseFloat(cr.value) >= 1
+                ? "warn"
+                : "bad"
+              : undefined
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: ReactElement;
+  tone?: "ok" | "warn" | "bad";
+}) {
+  return (
+    <div className={styles.kpiCard}>
+      <span className={styles.kpiLabel}>{label}</span>
+      <span
+        className={styles.kpiValue}
+        data-tone={tone ?? undefined}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function EquationPanel({
   check,
   validation,
@@ -93,10 +172,10 @@ function EquationPanel({
         </dd>
         <dt>Tolerance applied</dt>
         <dd>
-          {}
           <MoneyValue value={check.tolerance_applied} trimTrailingZeros />
         </dd>
       </dl>
+
       <div className={styles.verdict}>
         <StatusPill tone={check.balanced ? "ok" : "bad"}>
           {check.balanced ? "Balances" : "Does not balance"}
@@ -105,6 +184,7 @@ function EquationPanel({
           <span className="muted">Required fields missing</span>
         )}
       </div>
+
       {validation && validation.missing_fields.length > 0 && (
         <ul className={styles.missing}>
           {validation.missing_fields.map((field) => (
@@ -115,6 +195,64 @@ function EquationPanel({
     </section>
   );
 }
+
+function StructureBar({ check }: { check: EquationCheck }) {
+  const assets = parseFloat(check.total_assets) || 0;
+  const liabilities = parseFloat(check.total_liabilities) || 0;
+  const equity = parseFloat(check.total_equity) || 0;
+  const total = Math.max(assets, liabilities + equity, 1);
+
+  const assetPct = Math.min(100, (assets / total) * 100);
+  const liabPct = Math.min(100, (liabilities / total) * 100);
+  const eqPct = Math.min(100, (equity / total) * 100);
+
+  return (
+    <section className={styles.structureCard}>
+      <h2 className="eyebrow">Balance sheet structure</h2>
+      <div className={styles.structureGrid}>
+        <div className={styles.structureCol}>
+          <span className={styles.structureColLabel}>Assets</span>
+          <div className={styles.barTrack}>
+            <div
+              className={`${styles.barFill} ${styles.barAssets}`}
+              style={{ width: `${assetPct}%` }}
+              title={`Assets ${assetPct.toFixed(1)}%`}
+            />
+          </div>
+          <span className={styles.structureFigure}>
+            <MoneyValue value={check.total_assets} />
+          </span>
+        </div>
+        <div className={styles.structureCol}>
+          <span className={styles.structureColLabel}>Liabilities + Equity</span>
+          <div className={styles.barTrack}>
+            <div
+              className={`${styles.barFill} ${styles.barLiab}`}
+              style={{ width: `${liabPct}%` }}
+              title={`Liabilities ${liabPct.toFixed(1)}%`}
+            />
+            <div
+              className={`${styles.barFill} ${styles.barEquity}`}
+              style={{ width: `${eqPct}%` }}
+              title={`Equity ${eqPct.toFixed(1)}%`}
+            />
+          </div>
+          <div className={styles.structureFigurePair}>
+            <span>
+              <span className={styles.dotLiab} /> Liabilities{" "}
+              <MoneyValue value={check.total_liabilities} />
+            </span>
+            <span>
+              <span className={styles.dotEquity} /> Equity{" "}
+              <MoneyValue value={check.total_equity} />
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function IdentificationPanel({
   evidence,
 }: {
@@ -132,6 +270,7 @@ function IdentificationPanel({
           {evidence.is_balance_sheet ? "Balance Sheet" : "Not recognised"}
         </StatusPill>
       </div>
+
       {evidence.signals.length > 0 && (
         <details className={styles.details}>
           <summary className={styles.summary}>
@@ -154,10 +293,12 @@ function IdentificationPanel({
     </section>
   );
 }
+
 function PeriodPanel({ period }: { period: PeriodSelection }) {
   const others = period.candidates.filter(
     (candidate) => candidate.label !== period.selected.label,
   );
+
   return (
     <section className="card">
       <h2 className="eyebrow">Reporting period</h2>
@@ -165,6 +306,7 @@ function PeriodPanel({ period }: { period: PeriodSelection }) {
         <strong>{period.selected.label}</strong>
         <span className="muted"> — {period.reason}</span>
       </p>
+
       {others.length > 0 && (
         <>
           <p className="muted">

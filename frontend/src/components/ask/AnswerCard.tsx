@@ -6,11 +6,13 @@ import { AnswerProse } from "./AnswerProse";
 import { EvidenceList } from "./EvidenceList";
 import { VerificationBadge } from "./VerificationBadge";
 import styles from "./Ask.module.css";
+
 const STATUS_LABEL: Record<Answer["status"], string> = {
   answered: "Answered",
   refused: "Not answered",
   degraded: "Figures only",
 };
+
 export function AnswerCard({ answer }: { answer: Answer }): ReactElement {
   return (
     <article className={styles.answer} data-status={answer.status}>
@@ -18,8 +20,8 @@ export function AnswerCard({ answer }: { answer: Answer }): ReactElement {
         <StatusPill tone={answerStatusTone(answer.status)}>
           {STATUS_LABEL[answer.status]}
         </StatusPill>
-        {answer.model && <span className={styles.model}>{answer.model}</span>}
       </div>
+
       {answer.status === "refused" ? (
         <RefusalNotice reason={answer.reason} />
       ) : answer.status === "degraded" ? (
@@ -27,32 +29,38 @@ export function AnswerCard({ answer }: { answer: Answer }): ReactElement {
       ) : (
         <AnswerProse text={answer.answer ?? ""} />
       )}
+
       {answer.status === "answered" && (
-        <>
-          <EvidenceList items={answer.citations} summary="Cited" />
+        <div className={styles.secondaryControls}>
+          <VerificationBadge verification={answer.verification} />
+          <EvidenceList items={answer.citations} summary="Citations" />
           <EvidenceList
             items={answer.supporting_facts}
-            summary="Facts placed in context"
+            summary="Context facts"
           />
-          <VerificationBadge verification={answer.verification} />
-        </>
+        </div>
       )}
+
       {answer.status === "degraded" && (
-        <EvidenceList items={answer.supporting_facts} summary="Stored figures" />
+        <div className={styles.secondaryControls}>
+          <EvidenceList items={answer.supporting_facts} summary="Stored figures" />
+        </div>
       )}
     </article>
   );
 }
+
 function RefusalNotice({ reason }: { reason: string | null | undefined }) {
   const { title, explanation, suggestion } = describeRefusal(reason);
   return (
-    <>
+    <div className={styles.refusalNotice}>
       <p className={styles.refusalTitle}>{title}</p>
       <p className={styles.refusalBody}>{explanation}</p>
       {suggestion && <p className={styles.refusalSuggestion}>{suggestion}</p>}
-    </>
+    </div>
   );
 }
+
 function DegradedNotice() {
   return (
     <p className={styles.degradedNote}>
